@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:uuid/uuid.dart';
 
 final secureStorageServiceProvider = Provider<SecureStorageService>(
   (ref) => const SecureStorageService(FlutterSecureStorage()),
@@ -10,6 +11,7 @@ class SecureStorageService {
 
   static const _activationTokenKey = 'activation_token';
   static const _activationCodeKey = 'activation_code';
+  static const _deviceIdKey = 'device_id';
 
   final FlutterSecureStorage _storage;
 
@@ -17,6 +19,15 @@ class SecureStorageService {
       (await _storage.read(key: _activationTokenKey))?.isNotEmpty ?? false;
 
   Future<String?> get activationCode => _storage.read(key: _activationCodeKey);
+
+  Future<String> getOrCreateDeviceId() async {
+    final existing = await _storage.read(key: _deviceIdKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+
+    final deviceId = const Uuid().v4();
+    await _storage.write(key: _deviceIdKey, value: deviceId);
+    return deviceId;
+  }
 
   Future<void> saveActivation({
     required String code,

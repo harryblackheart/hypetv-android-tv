@@ -52,11 +52,12 @@ Activation is isolated in `ApiClient.activate` and currently calls
 `POST /api/activate` with:
 
 ```json
-{"code":"12345","platform":"android_tv"}
+{"code":12345,"device_id":"secure-device-uuid","platform":"android_tv"}
 ```
 
-The client accepts either `token` or `activationToken` from the response. If
-the final backend contract changes, only this adapter needs to change.
+The device UUID is generated once and kept in secure storage. The client accepts
+the backend's supported token field variants from the response. If the backend
+contract changes, only this adapter needs to change.
 
 ## Local development
 

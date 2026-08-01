@@ -33,7 +33,10 @@ class ApiClient {
   ApiClient(this._client);
   final http.Client _client;
 
-  Future<ActivationResult> activate(String code) async {
+  Future<ActivationResult> activate(
+    String code, {
+    required String deviceId,
+  }) async {
     final response = await _client
         .post(
           Uri.parse('${AppConstants.apiBaseUrl}/api/activate'),
@@ -41,18 +44,29 @@ class ApiClient {
             HttpHeaders.contentTypeHeader: 'application/json',
             HttpHeaders.acceptHeader: 'application/json',
           },
-          body: jsonEncode({'code': code, 'platform': 'android_tv'}),
+          body: jsonEncode({
+            'code': int.parse(code),
+            'device_id': deviceId,
+            'platform': 'android_tv',
+          }),
         )
         .timeout(const Duration(seconds: 15));
 
     final body = _decodeBody(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
-        body['message']?.toString() ?? 'Activation failed. Check the code.',
+        (body['error'] ?? body['message'])?.toString() ??
+            'Activation failed. Check the code.',
         statusCode: response.statusCode,
       );
     }
-    final token = (body['token'] ?? body['activationToken'])?.toString();
+    final token =
+        (body['token'] ??
+                body['activationToken'] ??
+                body['activation_token'] ??
+                body['deviceToken'] ??
+                body['device_token'])
+            ?.toString();
     if (token == null || token.isEmpty) {
       throw const ApiException(
         'The activation response did not include a token.',

@@ -12,7 +12,11 @@ class ActivationController extends AsyncNotifier<bool> {
   Future<bool> activate(String code) async {
     state = const AsyncLoading();
     try {
-      final result = await ref.read(apiClientProvider).activate(code);
+      final storage = ref.read(secureStorageServiceProvider);
+      final deviceId = await storage.getOrCreateDeviceId();
+      final result = await ref
+          .read(apiClientProvider)
+          .activate(code, deviceId: deviceId);
       await ref
           .read(secureStorageServiceProvider)
           .saveActivation(code: code, token: result.token);
@@ -22,6 +26,10 @@ class ActivationController extends AsyncNotifier<bool> {
       state = AsyncError(error, stackTrace);
       return false;
     }
+  }
+
+  void clearError() {
+    if (state.hasError) state = const AsyncData(false);
   }
 
   Future<void> deactivate() async {

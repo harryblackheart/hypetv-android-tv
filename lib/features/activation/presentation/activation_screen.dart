@@ -19,11 +19,13 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
 
   void _append(String digit) {
     if (_code.length >= AppConstants.activationCodeLength) return;
+    ref.read(activationControllerProvider.notifier).clearError();
     setState(() => _code += digit);
   }
 
   void _remove() {
     if (_code.isEmpty) return;
+    ref.read(activationControllerProvider.notifier).clearError();
     setState(() => _code = _code.substring(0, _code.length - 1));
   }
 
@@ -62,116 +64,238 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
     final error = activation.hasError ? activation.error.toString() : null;
 
     return Scaffold(
-      body: Focus(
-        onKeyEvent: _onKeyEvent,
-        child: Row(
-          children: [
-            Expanded(
-              flex: 6,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(72, 48, 48, 48),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
+      body: SafeArea(
+        child: Focus(
+          onKeyEvent: _onKeyEvent,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact =
+                  constraints.maxWidth < 1200 || constraints.maxHeight < 700;
+              return Row(
+                children: [
+                  Expanded(
+                    flex: compact ? 5 : 6,
+                    child: _ActivationIntro(
+                      code: _code,
+                      busy: busy,
+                      error: error,
+                      compact: compact,
+                    ),
+                  ),
+                  Expanded(
+                    flex: compact ? 5 : 4,
+                    child: _ActivationKeypad(
+                      compact: compact,
+                      busy: busy,
+                      codeLength: _code.length,
+                      onDigit: _append,
+                      onRemove: _remove,
+                      onSubmit: _submit,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivationIntro extends StatelessWidget {
+  const _ActivationIntro({
+    required this.code,
+    required this.busy,
+    required this.error,
+    required this.compact,
+  });
+
+  final String code;
+  final bool busy;
+  final String? error;
+  final bool compact;
+
+  String get _status {
+    if (busy) return 'Checking your activation code…';
+    if (error != null) return 'Activation failed: $error';
+    if (code.isEmpty) return 'Enter your 5-digit code';
+    if (code.length < AppConstants.activationCodeLength) {
+      return '${code.length} of ${AppConstants.activationCodeLength} digits entered';
+    }
+    return 'Code ready — select the tick to activate';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final padding = compact
+        ? const EdgeInsets.symmetric(horizontal: 28, vertical: 18)
+        : const EdgeInsets.fromLTRB(72, 48, 48, 48);
+    final statusColor = error != null ? AppColors.red : AppColors.muted;
+
+    return Padding(
+      padding: padding,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final gap = compact ? 8.0 : 14.0;
+          final available =
+              constraints.maxWidth -
+              (gap * (AppConstants.activationCodeLength - 1));
+          final boxWidth = (available / AppConstants.activationCodeLength)
+              .clamp(40.0, compact ? 58.0 : 76.0);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              BrandLogo(fontSize: compact ? 30 : 42),
+              SizedBox(height: compact ? 16 : 48),
+              Text(
+                'Activate your TV',
+                style: compact
+                    ? Theme.of(context).textTheme.headlineLarge
+                    : Theme.of(context).textTheme.displayLarge,
+              ),
+              SizedBox(height: compact ? 8 : 16),
+              Text(
+                'Enter the 5-digit code shown in your HypeTV account.',
+                maxLines: compact ? 2 : null,
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: compact ? 15 : 20,
+                ),
+              ),
+              SizedBox(height: compact ? 16 : 36),
+              Row(
+                children: [
+                  for (
+                    var index = 0;
+                    index < AppConstants.activationCodeLength;
+                    index++
+                  ) ...[
+                    if (index > 0) SizedBox(width: gap),
+                    _CodeBox(
+                      value: index < code.length ? code[index] : '',
+                      active: index == code.length,
+                      width: boxWidth,
+                      compact: compact,
+                    ),
+                  ],
+                ],
+              ),
+              SizedBox(height: compact ? 12 : 24),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Row(
+                  key: ValueKey(_status),
                   children: [
-                    const BrandLogo(),
-                    const SizedBox(height: 48),
-                    Text(
-                      'Activate your TV',
-                      style: Theme.of(context).textTheme.displayLarge,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Enter the 5-digit code shown in your HypeTV account.',
-                      style: TextStyle(color: AppColors.muted, fontSize: 20),
-                    ),
-                    const SizedBox(height: 36),
-                    Row(
-                      children: List.generate(
-                        AppConstants.activationCodeLength,
-                        (index) => _CodeBox(
-                          value: index < _code.length ? _code[index] : '',
-                          active: index == _code.length,
+                    if (busy) ...[
+                      const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: Text(
+                        _status,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: compact ? 14 : 17,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: error == null
-                          ? const SizedBox(height: 28)
-                          : Text(
-                              error,
-                              key: ValueKey(error),
-                              style: const TextStyle(
-                                color: AppColors.red,
-                                fontSize: 17,
-                              ),
-                            ),
                     ),
                   ],
                 ),
               ),
-            ),
-            Expanded(
-              flex: 4,
-              child: Container(
-                color: AppColors.surface,
-                padding: const EdgeInsets.all(48),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 390),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        GridView.count(
-                          shrinkWrap: true,
-                          crossAxisCount: 3,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.65,
-                          children: [
-                            for (var number = 1; number <= 9; number++)
-                              _KeypadButton(
-                                label: '$number',
-                                onPressed: busy
-                                    ? null
-                                    : () => _append('$number'),
-                              ),
-                            _KeypadButton(
-                              icon: Icons.backspace_outlined,
-                              onPressed: busy ? null : _remove,
-                            ),
-                            _KeypadButton(
-                              label: '0',
-                              onPressed: busy ? null : () => _append('0'),
-                            ),
-                            _KeypadButton(
-                              icon: busy
-                                  ? Icons.hourglass_top_rounded
-                                  : Icons.check_rounded,
-                              primary: true,
-                              onPressed:
-                                  busy ||
-                                      _code.length !=
-                                          AppConstants.activationCodeLength
-                                  ? null
-                                  : _submit,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Use your remote to enter the code',
-                          style: TextStyle(color: AppColors.muted),
-                        ),
-                      ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ActivationKeypad extends StatelessWidget {
+  const _ActivationKeypad({
+    required this.compact,
+    required this.busy,
+    required this.codeLength,
+    required this.onDigit,
+    required this.onRemove,
+    required this.onSubmit,
+  });
+
+  final bool compact;
+  final bool busy;
+  final int codeLength;
+  final ValueChanged<String> onDigit;
+  final VoidCallback onRemove;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final spacing = compact ? 8.0 : 12.0;
+    return Container(
+      color: AppColors.surface,
+      padding: EdgeInsets.all(compact ? 18 : 48),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 390),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 3,
+                mainAxisSpacing: spacing,
+                crossAxisSpacing: spacing,
+                childAspectRatio: compact ? 2.05 : 1.65,
+                children: [
+                  for (var number = 1; number <= 9; number++)
+                    _KeypadButton(
+                      label: '$number',
+                      compact: compact,
+                      onPressed: busy ? null : () => onDigit('$number'),
                     ),
+                  _KeypadButton(
+                    icon: Icons.backspace_outlined,
+                    compact: compact,
+                    onPressed: busy ? null : onRemove,
                   ),
+                  _KeypadButton(
+                    label: '0',
+                    compact: compact,
+                    onPressed: busy ? null : () => onDigit('0'),
+                  ),
+                  _KeypadButton(
+                    icon: busy
+                        ? Icons.hourglass_top_rounded
+                        : Icons.check_rounded,
+                    compact: compact,
+                    primary: true,
+                    onPressed:
+                        busy || codeLength != AppConstants.activationCodeLength
+                        ? null
+                        : onSubmit,
+                  ),
+                ],
+              ),
+              SizedBox(height: compact ? 12 : 24),
+              Text(
+                compact
+                    ? 'Enter the code, then select ✓'
+                    : 'Use your remote to enter the code',
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: compact ? 13 : 14,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -179,17 +303,23 @@ class _ActivationScreenState extends ConsumerState<ActivationScreen> {
 }
 
 class _CodeBox extends StatelessWidget {
-  const _CodeBox({required this.value, required this.active});
+  const _CodeBox({
+    required this.value,
+    required this.active,
+    required this.width,
+    required this.compact,
+  });
   final String value;
   final bool active;
+  final double width;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
-      width: 76,
-      height: 88,
-      margin: const EdgeInsets.only(right: 14),
+      width: width,
+      height: compact ? 60 : 88,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: AppColors.surfaceRaised,
@@ -201,7 +331,10 @@ class _CodeBox extends StatelessWidget {
       ),
       child: Text(
         value,
-        style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          fontSize: compact ? 30 : 42,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -213,11 +346,13 @@ class _KeypadButton extends StatefulWidget {
     this.label,
     this.icon,
     this.primary = false,
+    this.compact = false,
   });
   final VoidCallback? onPressed;
   final String? label;
   final IconData? icon;
   final bool primary;
+  final bool compact;
 
   @override
   State<_KeypadButton> createState() => _KeypadButtonState();
@@ -245,11 +380,11 @@ class _KeypadButtonState extends State<_KeypadButton> {
           ),
         ),
         child: widget.icon != null
-            ? Icon(widget.icon, size: 28)
+            ? Icon(widget.icon, size: widget.compact ? 22 : 28)
             : Text(
                 widget.label!,
-                style: const TextStyle(
-                  fontSize: 26,
+                style: TextStyle(
+                  fontSize: widget.compact ? 20 : 26,
                   fontWeight: FontWeight.w700,
                 ),
               ),
