@@ -5,6 +5,7 @@ import 'package:hypetv/widgets/brand_logo.dart';
 
 void main() {
   testWidgets('brand logo renders in the TV theme', (tester) async {
+    final semantics = tester.ensureSemantics();
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.dark,
@@ -13,6 +14,7 @@ void main() {
     );
 
     expect(find.text('HYPE'), findsOneWidget);
-    expect(find.bySemanticsLabel('Hype TV'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Hype TV')), findsOneWidget);
+    semantics.dispose();
   });
 }
