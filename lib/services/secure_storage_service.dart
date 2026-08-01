@@ -1,0 +1,37 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+final secureStorageServiceProvider = Provider<SecureStorageService>(
+  (ref) => const SecureStorageService(FlutterSecureStorage()),
+);
+
+class SecureStorageService {
+  const SecureStorageService(this._storage);
+
+  static const _activationTokenKey = 'activation_token';
+  static const _activationCodeKey = 'activation_code';
+
+  final FlutterSecureStorage _storage;
+
+  Future<bool> get isActivated async =>
+      (await _storage.read(key: _activationTokenKey))?.isNotEmpty ?? false;
+
+  Future<String?> get activationCode => _storage.read(key: _activationCodeKey);
+
+  Future<void> saveActivation({
+    required String code,
+    required String token,
+  }) async {
+    await Future.wait([
+      _storage.write(key: _activationCodeKey, value: code),
+      _storage.write(key: _activationTokenKey, value: token),
+    ]);
+  }
+
+  Future<void> clearActivation() async {
+    await Future.wait([
+      _storage.delete(key: _activationCodeKey),
+      _storage.delete(key: _activationTokenKey),
+    ]);
+  }
+}
