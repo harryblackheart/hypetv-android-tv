@@ -1,25 +1,113 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
+import 'package:hypetv/features/catalogue/presentation/catalogue_state_view.dart';
+import 'package:hypetv/features/catalogue/presentation/content_actions.dart';
 import 'package:hypetv/features/home/data/catalogue_service.dart';
-import 'package:hypetv/features/home/data/demo_catalog.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 import 'package:hypetv/widgets/tv_button.dart';
+import 'package:hypetv/services/watch_history_service.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  var _redirecting = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final catalogue = ref.watch(homeCatalogueProvider);
+    ref.listen(homeCatalogueProvider, (_, next) {
+      final error = next.error;
+      if (!_redirecting &&
+          error is CatalogueException &&
+          error.isAuthenticationRejected) {
+        _redirecting = true;
+        unawaited(rejectDeviceToken(context, ref));
+      }
+    });
+    return catalogue.when(
+      loading: () => const _HomeFrame(child: CatalogueLoadingView()),
+      error: (error, _) => _HomeFrame(
+        child: CatalogueStateView(
+          title: 'Unable to load HypeTV',
+          message: error is CatalogueException
+              ? error.userMessage
+              : 'HypeTV could not load the catalogue. Please try again.',
+          onRetry: () => ref.invalidate(homeCatalogueProvider),
+          icon: Icons.cloud_off_rounded,
+        ),
+      ),
+      data: (shelves) {
+        final history = ref.watch(watchHistoryProvider).value ?? const [];
+        final hasContinueWatching = shelves.any(
+          (shelf) => shelf.title.toLowerCase().contains('continue watching'),
+        );
+        final experienceShelves = history.isNotEmpty && !hasContinueWatching
+            ? [
+                ContentShelf(title: 'Continue Watching', items: history),
+                ...shelves,
+              ]
+            : shelves;
+        if (experienceShelves.isEmpty) {
+          return _HomeFrame(
+            child: CatalogueStateView(
+              title: 'Your catalogue is empty',
+              message: 'There is no content available for this account yet.',
+              onRetry: () => ref.invalidate(homeCatalogueProvider),
+            ),
+          );
+        }
+        return _LoadedHome(shelves: experienceShelves);
+      },
+    );
+  }
+}
+
+class _HomeFrame extends StatelessWidget {
+  const _HomeFrame({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(54, 28, 54, 18),
+              child: _TopNavigation(),
+            ),
+            Expanded(child: child),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadedHome extends ConsumerWidget {
+  const _LoadedHome({required this.shelves});
+  final List<ContentShelf> shelves;
+
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final remoteShelves = ref.watch(homeCatalogueProvider).value;
-    final shelves = remoteShelves?.isNotEmpty == true
-        ? remoteShelves!
-        : demoShelves;
+    final hero = shelves
+        .expand((shelf) => shelf.items)
+        .firstWhere(
+          (item) => item.backdropUrl?.isNotEmpty == true,
+          orElse: () => shelves.first.items.first,
+        );
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -28,7 +116,10 @@ class HomeScreen extends ConsumerWidget {
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
-                child: _HeroBanner(horizontalPadding: horizontalPadding),
+                child: _HeroBanner(
+                  item: hero,
+                  horizontalPadding: horizontalPadding,
+                ),
               ),
               for (var index = 0; index < shelves.length; index++)
                 SliverToBoxAdapter(
@@ -48,32 +139,39 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _HeroBanner extends StatelessWidget {
-  const _HeroBanner({required this.horizontalPadding});
+class _HeroBanner extends ConsumerWidget {
+  const _HeroBanner({required this.item, required this.horizontalPadding});
+  final ContentItem item;
   final double horizontalPadding;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final height = MediaQuery.sizeOf(context).height * .68;
+    final backdrop = item.backdropUrl?.isNotEmpty == true
+        ? item.backdropUrl!
+        : item.imageUrl;
     return SizedBox(
       height: height.clamp(480.0, 760.0),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1800&auto=format&fit=crop',
-            fit: BoxFit.cover,
-            alignment: Alignment.centerRight,
-            errorBuilder: (context, error, stackTrace) =>
-                const ColoredBox(color: AppColors.surface),
-          ),
+          if (backdrop.isNotEmpty)
+            Image.network(
+              backdrop,
+              fit: BoxFit.cover,
+              alignment: Alignment.centerRight,
+              errorBuilder: (_, _, _) =>
+                  const ColoredBox(color: AppColors.surface),
+            )
+          else
+            const ColoredBox(color: AppColors.surface),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
                 stops: [0, .52, 1],
-                colors: [Colors.black, Color(0xD9000000), Colors.transparent],
+                colors: [Colors.black, Color(0xE6000000), Colors.transparent],
               ),
             ),
           ),
@@ -82,7 +180,6 @@ class _HeroBanner extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: [0, .68, 1],
                 colors: [Colors.black54, Colors.transparent, AppColors.black],
               ),
             ),
@@ -91,53 +188,65 @@ class _HeroBanner extends StatelessWidget {
             left: horizontalPadding,
             top: 30,
             right: horizontalPadding,
-            child: _TopNavigation(horizontalPadding: horizontalPadding),
+            child: const _TopNavigation(),
           ),
           Positioned(
             left: horizontalPadding,
             bottom: 56,
-            width: 640,
+            width: 690,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'HYPETV ORIGINAL',
-                  style: TextStyle(
-                    color: AppColors.red,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 3,
+                if (item.badge?.isNotEmpty == true)
+                  Text(
+                    item.badge!,
+                    style: const TextStyle(
+                      color: AppColors.red,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 3,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Text(
-                  'BEYOND\nTHE SIGNAL',
-                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                    height: .92,
-                    letterSpacing: -2,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  'A mysterious transmission from the edge of space sends a crew on an impossible journey.',
+                  item.title,
                   maxLines: 2,
-                  style: TextStyle(fontSize: 19, color: Colors.white70),
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.displayLarge?.copyWith(height: .94),
                 ),
+                if (item.description?.isNotEmpty == true) ...[
+                  const SizedBox(height: 18),
+                  Text(
+                    item.description!,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 19, color: Colors.white70),
+                  ),
+                ],
                 const SizedBox(height: 26),
                 Row(
                   children: [
                     TvButton(
                       label: 'Play',
                       autofocus: true,
-                      onPressed: () => _showComingSoon(context),
+                      onPressed:
+                          () => catalogueTypeOf(item) == CatalogueType.series
+                          ? openContent(context, ref, item)
+                          : playContent(context, ref, item),
                     ),
-                    const SizedBox(width: 16),
-                    TvButton(
-                      label: 'More info',
-                      icon: Icons.info_outline_rounded,
-                      primary: false,
-                      onPressed: () => _showComingSoon(context),
-                    ),
+                    if (catalogueTypeOf(item) case final type?) ...[
+                      if (type != CatalogueType.live) ...[
+                        const SizedBox(width: 16),
+                        TvButton(
+                          label: 'More info',
+                          icon: Icons.info_outline_rounded,
+                          primary: false,
+                          onPressed: () => openContent(context, ref, item),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ],
@@ -150,8 +259,7 @@ class _HeroBanner extends StatelessWidget {
 }
 
 class _TopNavigation extends StatelessWidget {
-  const _TopNavigation({required this.horizontalPadding});
-  final double horizontalPadding;
+  const _TopNavigation();
 
   @override
   Widget build(BuildContext context) {
@@ -160,24 +268,17 @@ class _TopNavigation extends StatelessWidget {
       children: [
         const BrandLogo(),
         if (!compact) ...[
-          const SizedBox(width: 52),
+          const SizedBox(width: 46),
           const _NavLabel('Home', selected: true),
-          _NavLabel(
-            'Live TV',
-            onPressed: () => _showSection(context, 'Live TV'),
-          ),
-          _NavLabel('Movies', onPressed: () => _showSection(context, 'Movies')),
-          _NavLabel('Series', onPressed: () => _showSection(context, 'Series')),
-          _NavLabel(
-            'Favourites',
-            onPressed: () => _showSection(context, 'Favourites'),
-          ),
+          _NavLabel('Live TV', onPressed: () => context.push('/live')),
+          _NavLabel('Movies', onPressed: () => context.push('/movies')),
+          _NavLabel('Series', onPressed: () => context.push('/series')),
         ],
         const Spacer(),
         IconButton(
-          tooltip: 'Voice search',
-          onPressed: () => _showSection(context, 'Voice search'),
-          icon: const Icon(Icons.mic_none_rounded, size: 30),
+          tooltip: 'Search',
+          onPressed: () => context.push('/search'),
+          icon: const Icon(Icons.search_rounded, size: 30),
           style: IconButton.styleFrom(backgroundColor: Colors.black54),
         ),
         const SizedBox(width: 12),
@@ -233,7 +334,7 @@ class _NavLabelState extends State<_NavLabel> {
   }
 }
 
-class _ContentRail extends StatelessWidget {
+class _ContentRail extends ConsumerWidget {
   const _ContentRail({
     required this.shelf,
     required this.cardWidth,
@@ -247,7 +348,7 @@ class _ContentRail extends StatelessWidget {
   final bool autofocus;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cardHeight = cardWidth * .58 + 54;
     return Padding(
       padding: const EdgeInsets.only(bottom: 40),
@@ -272,12 +373,12 @@ class _ContentRail extends StatelessWidget {
                 vertical: cardHeight * .04,
               ),
               itemCount: shelf.items.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 18),
+              separatorBuilder: (_, _) => const SizedBox(width: 18),
               itemBuilder: (context, index) => MediaCard(
                 item: shelf.items[index],
                 width: cardWidth,
                 autofocus: autofocus && index == 0,
-                onPressed: () => _showComingSoon(context),
+                onPressed: () => openContent(context, ref, shelf.items[index]),
               ),
             ),
           ),
@@ -285,28 +386,4 @@ class _ContentRail extends StatelessWidget {
       ),
     );
   }
-}
-
-void _showComingSoon(BuildContext context) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Playback will be connected to the HypeTV catalogue API.',
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-}
-
-void _showSection(BuildContext context, String section) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Text('$section will connect to the HypeTV catalogue.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
 }

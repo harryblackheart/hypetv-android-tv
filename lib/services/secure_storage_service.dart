@@ -12,6 +12,7 @@ class SecureStorageService {
   static const _activationTokenKey = 'activation_token';
   static const _activationCodeKey = 'activation_code';
   static const _deviceIdKey = 'device_id';
+  static const _watchHistoryKey = 'watch_history';
 
   final FlutterSecureStorage _storage;
 
@@ -22,6 +23,11 @@ class SecureStorageService {
       _storage.read(key: _activationTokenKey);
 
   Future<String?> get activationCode => _storage.read(key: _activationCodeKey);
+
+  Future<String?> get watchHistory => _storage.read(key: _watchHistoryKey);
+
+  Future<void> saveWatchHistory(String value) =>
+      _storage.write(key: _watchHistoryKey, value: value);
 
   Future<String> getOrCreateDeviceId() async {
     final existing = await _storage.read(key: _deviceIdKey);
