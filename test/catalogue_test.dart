@@ -22,4 +22,21 @@ void main() {
     expect(shelf.items.single.type, 'live');
     expect(shelf.items.single.playbackId, 'opaque-playback-reference');
   });
+
+  test('parses episodes grouped by season', () {
+    final series = ContentItem.fromJson({
+      'id': 'series-1',
+      'type': 'series',
+      'name': 'Premium Drama',
+      'episodes': {
+        '1': [
+          {'id': 'episode-1', 'title': 'Episode 1'},
+          {'id': 'episode-2', 'title': 'Episode 2'},
+        ],
+      },
+    });
+
+    expect(series.episodes, hasLength(2));
+    expect(series.episodes.first.type, 'episode');
+  });
 }

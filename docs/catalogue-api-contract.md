@@ -39,9 +39,9 @@ credentials. Empty shelves are omitted. The preferred order is Continue
 Watching, Live TV, Trending Movies, Latest Series, Recently Added, HypeTV
 Originals, Sports Tonight, and News.
 
-Until this endpoint is available, the app safely displays its bundled preview
-catalogue. As soon as the endpoint returns valid shelves for an activated
-device, the app replaces the previews automatically.
+The app displays loading, empty, retry, and safe source-error states. It never
+substitutes fabricated catalogue items when the authenticated response is empty
+or unavailable.
 
 ## Future endpoints
 
