@@ -42,6 +42,28 @@ void main() {
     );
   });
 
+  test('activation exposes a stable backend error code', () async {
+    final client = ApiClient(
+      MockClient(
+        (_) async => http.Response(
+          '{"code":"DEVICE_LIMIT_REACHED","message":"limit"}',
+          409,
+        ),
+      ),
+    );
+
+    expect(
+      () => client.activate('12345', deviceId: 'device-123'),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.code,
+          'code',
+          'DEVICE_LIMIT_REACHED',
+        ),
+      ),
+    );
+  });
+
   test('activation accepts a successful response without a token', () async {
     final client = ApiClient(
       MockClient((_) async => http.Response('{"success":true}', 200)),

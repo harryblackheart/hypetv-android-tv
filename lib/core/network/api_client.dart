@@ -16,9 +16,10 @@ final apiClientProvider = Provider<ApiClient>(
 );
 
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode});
+  const ApiException(this.message, {this.statusCode, this.code});
   final String message;
   final int? statusCode;
+  final String? code;
 
   @override
   String toString() => message;
@@ -58,6 +59,7 @@ class ApiClient {
         (body['error'] ?? body['message'])?.toString() ??
             'Activation failed. Check the code.',
         statusCode: response.statusCode,
+        code: body['code']?.toString(),
       );
     }
     final token =

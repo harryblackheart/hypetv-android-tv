@@ -118,7 +118,7 @@ class _ActivationIntro extends StatelessWidget {
 
   String get _status {
     if (busy) return 'Checking your activation code…';
-    if (error != null) return 'Activation failed: $error';
+    if (error != null) return error!;
     if (code.isEmpty) return 'Enter your 5-digit code';
     if (code.length < AppConstants.activationCodeLength) {
       return '${code.length} of ${AppConstants.activationCodeLength} digits entered';
