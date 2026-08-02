@@ -1,19 +1,25 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
+import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/data/demo_catalog.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 import 'package:hypetv/widgets/tv_button.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final remoteShelves = ref.watch(homeCatalogueProvider).value;
+    final shelves = remoteShelves?.isNotEmpty == true
+        ? remoteShelves!
+        : demoShelves;
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -24,10 +30,10 @@ class HomeScreen extends StatelessWidget {
               SliverToBoxAdapter(
                 child: _HeroBanner(horizontalPadding: horizontalPadding),
               ),
-              for (var index = 0; index < demoShelves.length; index++)
+              for (var index = 0; index < shelves.length; index++)
                 SliverToBoxAdapter(
                   child: _ContentRail(
-                    shelf: demoShelves[index],
+                    shelf: shelves[index],
                     cardWidth: cardWidth,
                     horizontalPadding: horizontalPadding,
                     autofocus: index == 0,
@@ -85,23 +91,7 @@ class _HeroBanner extends StatelessWidget {
             left: horizontalPadding,
             top: 30,
             right: horizontalPadding,
-            child: Row(
-              children: [
-                const BrandLogo(),
-                const Spacer(),
-                IconButton.filledTonal(
-                  autofocus: true,
-                  tooltip: 'Settings',
-                  onPressed: () => context.push('/settings'),
-                  icon: const Icon(Icons.settings_outlined, size: 28),
-                  style: IconButton.styleFrom(
-                    padding: const EdgeInsets.all(16),
-                    backgroundColor: Colors.black54,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
+            child: _TopNavigation(horizontalPadding: horizontalPadding),
           ),
           Positioned(
             left: horizontalPadding,
@@ -138,6 +128,7 @@ class _HeroBanner extends StatelessWidget {
                   children: [
                     TvButton(
                       label: 'Play',
+                      autofocus: true,
                       onPressed: () => _showComingSoon(context),
                     ),
                     const SizedBox(width: 16),
@@ -153,6 +144,90 @@ class _HeroBanner extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TopNavigation extends StatelessWidget {
+  const _TopNavigation({required this.horizontalPadding});
+  final double horizontalPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 1100;
+    return Row(
+      children: [
+        const BrandLogo(),
+        if (!compact) ...[
+          const SizedBox(width: 52),
+          const _NavLabel('Home', selected: true),
+          _NavLabel(
+            'Live TV',
+            onPressed: () => _showSection(context, 'Live TV'),
+          ),
+          _NavLabel('Movies', onPressed: () => _showSection(context, 'Movies')),
+          _NavLabel('Series', onPressed: () => _showSection(context, 'Series')),
+          _NavLabel(
+            'Favourites',
+            onPressed: () => _showSection(context, 'Favourites'),
+          ),
+        ],
+        const Spacer(),
+        IconButton(
+          tooltip: 'Voice search',
+          onPressed: () => _showSection(context, 'Voice search'),
+          icon: const Icon(Icons.mic_none_rounded, size: 30),
+          style: IconButton.styleFrom(backgroundColor: Colors.black54),
+        ),
+        const SizedBox(width: 12),
+        IconButton(
+          tooltip: 'Settings',
+          onPressed: () => context.push('/settings'),
+          icon: const Icon(Icons.account_circle_outlined, size: 32),
+          style: IconButton.styleFrom(backgroundColor: Colors.black54),
+        ),
+      ],
+    );
+  }
+}
+
+class _NavLabel extends StatefulWidget {
+  const _NavLabel(this.label, {this.selected = false, this.onPressed});
+  final String label;
+  final bool selected;
+  final VoidCallback? onPressed;
+
+  @override
+  State<_NavLabel> createState() => _NavLabelState();
+}
+
+class _NavLabelState extends State<_NavLabel> {
+  var _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (value) => setState(() => _focused = value),
+      child: TextButton(
+        onPressed: widget.onPressed ?? () {},
+        style: TextButton.styleFrom(
+          foregroundColor: _focused || widget.selected
+              ? Colors.white
+              : Colors.white70,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          side: _focused
+              ? const BorderSide(color: Colors.white, width: 2)
+              : BorderSide.none,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: Text(
+          widget.label,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: widget.selected ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -220,6 +295,17 @@ void _showComingSoon(BuildContext context) {
         content: Text(
           'Playback will be connected to the HypeTV catalogue API.',
         ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+}
+
+void _showSection(BuildContext context, String section) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text('$section will connect to the HypeTV catalogue.'),
         behavior: SnackBarBehavior.floating,
       ),
     );

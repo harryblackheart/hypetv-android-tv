@@ -18,6 +18,9 @@ class SecureStorageService {
   Future<bool> get isActivated async =>
       (await _storage.read(key: _activationTokenKey))?.isNotEmpty ?? false;
 
+  Future<String?> get activationToken =>
+      _storage.read(key: _activationTokenKey);
+
   Future<String?> get activationCode => _storage.read(key: _activationCodeKey);
 
   Future<String> getOrCreateDeviceId() async {
