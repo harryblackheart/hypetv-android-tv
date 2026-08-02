@@ -120,10 +120,7 @@ class ContentItem {
     }
     return maps
         .map(
-          (episode) => ContentItem.fromJson(
-            episode,
-            fallbackType: 'episode',
-          ),
+          (episode) => ContentItem.fromJson(episode, fallbackType: 'episode'),
         )
         .where((episode) => episode.id?.isNotEmpty == true)
         .toList(growable: false);

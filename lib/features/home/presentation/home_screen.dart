@@ -231,8 +231,8 @@ class _HeroBanner extends ConsumerWidget {
                     TvButton(
                       label: 'Play',
                       autofocus: true,
-                      onPressed:
-                          () => catalogueTypeOf(item) == CatalogueType.series
+                      onPressed: () =>
+                          catalogueTypeOf(item) == CatalogueType.series
                           ? openContent(context, ref, item)
                           : playContent(context, ref, item),
                     ),
