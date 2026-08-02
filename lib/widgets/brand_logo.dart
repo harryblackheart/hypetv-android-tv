@@ -15,16 +15,13 @@ class BrandLogo extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'HYPE',
-            style: TextStyle(
-              color: AppColors.red,
-              fontSize: fontSize,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -2,
-              height: 1,
-              shadows: const [Shadow(color: Colors.black54, blurRadius: 12)],
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('HYPE', style: _wordStyle),
+              SizedBox(width: fontSize * .13),
+              Text('TV', style: _wordStyle),
+            ],
           ),
           if (showTagline) ...[
             SizedBox(height: fontSize * .16),
@@ -42,4 +39,13 @@ class BrandLogo extends StatelessWidget {
       ),
     );
   }
+
+  TextStyle get _wordStyle => TextStyle(
+    color: AppColors.red,
+    fontSize: fontSize,
+    fontWeight: FontWeight.w900,
+    letterSpacing: -2,
+    height: 1,
+    shadows: const [Shadow(color: Colors.black54, blurRadius: 12)],
+  );
 }

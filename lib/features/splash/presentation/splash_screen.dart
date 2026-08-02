@@ -26,7 +26,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2900),
+      duration: const Duration(milliseconds: 3800),
     );
     _hypeOpacity = CurvedAnimation(
       parent: _controller,
@@ -99,6 +99,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       opacity: _hypeOpacity,
                       child: _LogoWord('HYPE', fontSize: logoSize),
                     ),
+                    SizedBox(width: logoSize * .10),
                     ClipRect(
                       child: FadeTransition(
                         opacity: _tvOpacity,

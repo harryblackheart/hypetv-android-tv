@@ -14,6 +14,7 @@ void main() {
     );
 
     expect(find.text('HYPE'), findsOneWidget);
+    expect(find.text('TV'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Hype TV')), findsOneWidget);
     semantics.dispose();
   });
