@@ -56,8 +56,9 @@ Activation is isolated in `ApiClient.activate` and currently calls
 ```
 
 The device UUID is generated once and kept in secure storage. The client accepts
-the backend's supported token field variants from the response. If the backend
-contract changes, only this adapter needs to change.
+the backend's supported token field variants when present. A successful
+token-less response creates a secure device-bound activation receipt. If the
+backend contract changes, only this adapter needs to change.
 
 ## Local development
 

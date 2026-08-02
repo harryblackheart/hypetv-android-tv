@@ -147,7 +147,7 @@ class _ActivationIntro extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              BrandLogo(fontSize: compact ? 30 : 42),
+              BrandLogo(fontSize: compact ? 30 : 42, showTagline: true),
               SizedBox(height: compact ? 16 : 48),
               Text(
                 'Activate your TV',

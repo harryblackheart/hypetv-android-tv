@@ -47,7 +47,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       body: Center(
         child: ScaleTransition(
           scale: _scale,
-          child: const BrandLogo(fontSize: 96),
+          child: const BrandLogo(fontSize: 96, showTagline: true),
         ),
       ),
     );

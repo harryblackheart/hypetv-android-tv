@@ -25,8 +25,8 @@ class ApiException implements Exception {
 }
 
 class ActivationResult {
-  const ActivationResult({required this.token});
-  final String token;
+  const ActivationResult({this.token});
+  final String? token;
 }
 
 class ApiClient {
@@ -67,12 +67,7 @@ class ApiClient {
                 body['deviceToken'] ??
                 body['device_token'])
             ?.toString();
-    if (token == null || token.isEmpty) {
-      throw const ApiException(
-        'The activation response did not include a token.',
-      );
-    }
-    return ActivationResult(token: token);
+    return ActivationResult(token: token?.isEmpty ?? true ? null : token);
   }
 
   Map<String, dynamic> _decodeBody(String source) {

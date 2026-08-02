@@ -41,4 +41,14 @@ void main() {
       ),
     );
   });
+
+  test('activation accepts a successful response without a token', () async {
+    final client = ApiClient(
+      MockClient((_) async => http.Response('{"success":true}', 200)),
+    );
+
+    final result = await client.activate('12345', deviceId: 'device-123');
+
+    expect(result.token, isNull);
+  });
 }

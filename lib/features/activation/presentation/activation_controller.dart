@@ -19,7 +19,10 @@ class ActivationController extends AsyncNotifier<bool> {
           .activate(code, deviceId: deviceId);
       await ref
           .read(secureStorageServiceProvider)
-          .saveActivation(code: code, token: result.token);
+          .saveActivation(
+            code: code,
+            token: result.token ?? 'activated:$deviceId',
+          );
       state = const AsyncData(true);
       return true;
     } catch (error, stackTrace) {
