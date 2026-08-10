@@ -13,6 +13,7 @@ import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 import 'package:hypetv/widgets/tv_button.dart';
 import 'package:hypetv/services/watch_history_service.dart';
+import 'package:hypetv/services/platform_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -23,9 +24,23 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   var _redirecting = false;
+  var _redirectingPremium = false;
 
   @override
   Widget build(BuildContext context) {
+    final bootstrap = ref.watch(appBootstrapProvider);
+    final entitlements = bootstrap.value?.entitlements;
+    if (entitlements != null &&
+        !entitlements.hypeCatalogue &&
+        entitlements.premiumVod) {
+      if (!_redirectingPremium) {
+        _redirectingPremium = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) context.go('/premium');
+        });
+      }
+      return const _HomeFrame(child: CatalogueLoadingView());
+    }
     final catalogue = ref.watch(homeCatalogueProvider);
     ref.listen(homeCatalogueProvider, (_, next) {
       final error = next.error;
@@ -290,11 +305,11 @@ class _HeroBanner extends ConsumerWidget {
   }
 }
 
-class _TopNavigation extends StatelessWidget {
+class _TopNavigation extends ConsumerWidget {
   const _TopNavigation();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final compact = MediaQuery.sizeOf(context).width < 1100;
     return Row(
       children: [
@@ -306,6 +321,8 @@ class _TopNavigation extends StatelessWidget {
           _NavLabel('Movies', onPressed: () => context.push('/movies')),
           _NavLabel('Series', onPressed: () => context.push('/series')),
           _NavLabel('Favourites', onPressed: () => context.push('/favourites')),
+          if (ref.watch(appBootstrapProvider).value?.entitlements.premiumVod == true)
+            _NavLabel('Premium VOD', onPressed: () => context.push('/premium')),
         ],
         const Spacer(),
         IconButton(
@@ -321,6 +338,15 @@ class _TopNavigation extends StatelessWidget {
           icon: const Icon(Icons.favorite_border_rounded, size: 30),
           style: IconButton.styleFrom(backgroundColor: Colors.black54),
         ),
+        if (ref.watch(appBootstrapProvider).value?.entitlements.premiumVod == true) ...[
+          const SizedBox(width: 12),
+          IconButton(
+            tooltip: 'Premium VOD',
+            onPressed: () => context.push('/premium'),
+            icon: const Icon(Icons.cloud_circle_outlined, size: 30),
+            style: IconButton.styleFrom(backgroundColor: Colors.black54),
+          ),
+        ],
         const SizedBox(width: 12),
         IconButton(
           tooltip: 'Settings',
