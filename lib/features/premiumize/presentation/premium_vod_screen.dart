@@ -153,8 +153,10 @@ class _PremiumVodScreenState extends ConsumerState<PremiumVodScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bootstrap = ref.watch(appBootstrapProvider).value;
-    final canUseHype = bootstrap?.entitlements.hypeCatalogue ?? true;
+    // Premium VOD is temporarily dormant while the core HypeTV experience is restored.
+    // Keep this legacy screen compilable without depending on entitlement fields that
+    // are intentionally absent from the core AppBootstrap model.
+    const canUseHype = true;
     final items = _searchResults ?? _folder?.items ?? const <PremiumizeItem>[];
     final folders = items.where((item) => item.isFolder).toList(growable: false);
     final videos = items.where((item) => !item.isFolder).toList(growable: false);
