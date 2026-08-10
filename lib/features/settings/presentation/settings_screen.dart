@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
@@ -138,6 +139,17 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 34),
+                        if (kDebugMode) ...[
+                          const _SectionTitle('DEVELOPER'),
+                          _SettingsTile(
+                            icon: Icons.analytics_outlined,
+                            title: 'Catalogue diagnostics',
+                            subtitle: 'Safe response status and item counts',
+                            actionLabel: 'Open',
+                            onPressed: () => context.push('/debug/catalogue'),
+                          ),
+                          const SizedBox(height: 34),
+                        ],
                         const _SectionTitle('DEVICE'),
                         const _SettingsTile(
                           icon: Icons.high_quality_rounded,

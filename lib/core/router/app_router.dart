@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/features/activation/presentation/activation_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catalogue_screen.dart';
+import 'package:hypetv/features/catalogue/presentation/catalogue_diagnostics_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/content_details_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/search_screen.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
@@ -68,6 +70,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             PlayerScreen(arguments: state.extra! as PlayerArguments),
       ),
+      if (kDebugMode)
+        GoRoute(
+          path: '/debug/catalogue',
+          builder: (context, state) => const CatalogueDiagnosticsScreen(),
+        ),
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
