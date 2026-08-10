@@ -99,7 +99,12 @@ class ContentItem {
     return ContentItem(
       id: id,
       sourceId: _sourceId(json, id),
-      playbackId: (json['playback_id'] ?? json['playbackId'] ?? _sourceId(json, id) ?? id)?.toString(),
+      playbackId:
+          (json['playback_id'] ??
+                  json['playbackId'] ??
+                  _sourceId(json, id) ??
+                  id)
+              ?.toString(),
       type: type,
       title: (json['title'] ?? json['name'])?.toString() ?? 'Untitled',
       subtitle:
