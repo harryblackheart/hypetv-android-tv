@@ -7,6 +7,7 @@ import 'package:hypetv/features/catalogue/presentation/catalogue_diagnostics_scr
 import 'package:hypetv/features/catalogue/presentation/content_details_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/search_screen.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
+import 'package:hypetv/features/favourites/presentation/favourites_screen.dart';
 import 'package:hypetv/features/home/presentation/home_screen.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
 import 'package:hypetv/features/platform/presentation/platform_gate.dart';
@@ -46,7 +47,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/search',
-        builder: (context, state) => const PlatformGate(child: SearchScreen()),
+        builder: (context, state) => PlatformGate(
+          child: SearchScreen(
+            initialType: state.extra is CatalogueType
+                ? state.extra! as CatalogueType
+                : null,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/favourites',
+        builder: (context, state) =>
+            const PlatformGate(child: FavouritesScreen()),
       ),
       GoRoute(
         path: '/details/:type/:id',

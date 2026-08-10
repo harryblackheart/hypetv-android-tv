@@ -9,6 +9,7 @@ import 'package:hypetv/features/catalogue/presentation/content_actions.dart';
 import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
+import 'package:hypetv/services/favourites_service.dart';
 import 'package:hypetv/widgets/tv_button.dart';
 
 class ContentDetailsScreen extends ConsumerStatefulWidget {
@@ -167,17 +168,46 @@ class _ContentDetailsScreenState extends ConsumerState<ContentDetailsScreen> {
                           ),
                         ],
                         const SizedBox(height: 26),
-                        TvButton(
-                          label: widget.type == CatalogueType.series
-                              ? 'Play first episode'
-                              : 'Play',
-                          autofocus: true,
-                          onPressed: () {
-                            final playable = item.episodes.isNotEmpty
-                                ? item.episodes.first
-                                : item;
-                            playContent(context, ref, playable);
-                          },
+                        Row(
+                          children: [
+                            TvButton(
+                              label: widget.type == CatalogueType.series
+                                  ? 'Play first episode'
+                                  : 'Play',
+                              autofocus: true,
+                              onPressed: () {
+                                final playable = item.episodes.isNotEmpty
+                                    ? item.episodes.first
+                                    : item;
+                                playContent(context, ref, playable);
+                              },
+                            ),
+                            const SizedBox(width: 16),
+                            Consumer(
+                              builder: (context, ref, _) {
+                                final favourites = ref.watch(favouritesProvider);
+                                final isFavourite = favourites.value?.any(
+                                      (candidate) =>
+                                          candidate.type == item.type &&
+                                          candidate.upstreamId == item.upstreamId,
+                                    ) ??
+                                    false;
+                                return OutlinedButton.icon(
+                                  onPressed: () => ref
+                                      .read(favouritesProvider.notifier)
+                                      .toggle(item),
+                                  icon: Icon(
+                                    isFavourite
+                                        ? Icons.favorite_rounded
+                                        : Icons.favorite_border_rounded,
+                                  ),
+                                  label: Text(
+                                    isFavourite ? 'Favourite' : 'Add favourite',
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ],
                     ),

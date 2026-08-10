@@ -26,6 +26,8 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
   Object? _error;
   var _loading = true;
 
+  bool get _requiresCategory => widget.type != CatalogueType.live;
+
   @override
   void initState() {
     super.initState();
@@ -36,20 +38,31 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
     setState(() {
       _loading = true;
       _error = null;
-      _selectedCategory = categoryId;
     });
     try {
       final service = ref.read(catalogueServiceProvider);
-      final results = await Future.wait([
-        if (_categories.isEmpty) service.fetchCategories(widget.type),
-        service.fetchItems(widget.type, categoryId: categoryId, limit: 60),
-      ]);
+      var categories = _categories;
+      if (categories.isEmpty) {
+        categories = await service.fetchCategories(widget.type);
+      }
+
+      var effectiveCategory = categoryId;
+      if (_requiresCategory &&
+          (effectiveCategory == null || effectiveCategory.isEmpty) &&
+          categories.isNotEmpty) {
+        effectiveCategory = categories.first.id;
+      }
+
+      final items = await service.fetchItems(
+        widget.type,
+        categoryId: effectiveCategory,
+        limit: 60,
+      );
       if (!mounted) return;
       setState(() {
-        if (_categories.isEmpty && results.length == 2) {
-          _categories = results.first as List<CatalogueCategory>;
-        }
-        _items = results.last as List<ContentItem>;
+        _categories = categories;
+        _selectedCategory = effectiveCategory;
+        _items = items;
         _loading = false;
       });
     } catch (error) {
@@ -92,7 +105,10 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                   const Spacer(),
                   IconButton(
                     tooltip: 'Search',
-                    onPressed: () => context.push('/search'),
+                    onPressed: () => context.push(
+                      '/search',
+                      extra: widget.type,
+                    ),
                     icon: const Icon(Icons.search_rounded, size: 32),
                   ),
                 ],
@@ -108,11 +124,12 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                     vertical: 6,
                   ),
                   children: [
-                    _CategoryChip(
-                      label: 'All',
-                      selected: _selectedCategory == null,
-                      onPressed: () => _load(),
-                    ),
+                    if (!_requiresCategory)
+                      _CategoryChip(
+                        label: 'All',
+                        selected: _selectedCategory == null,
+                        onPressed: () => _load(),
+                      ),
                     for (final category in _categories)
                       _CategoryChip(
                         label: category.name,

@@ -119,6 +119,9 @@ class ContentItem {
                   json['image_url'] ??
                   json['stream_icon'] ??
                   json['cover'] ??
+                  json['cover_big'] ??
+                  json['movie_image'] ??
+                  json['snapshot'] ??
                   json['imageUrl'])
               ?.toString() ??
           '',
@@ -181,6 +184,25 @@ class ContentItem {
     _ => false,
   };
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'source_id': sourceId,
+    'playback_id': playbackId,
+    'type': type,
+    'title': title,
+    'subtitle': subtitle,
+    'poster_url': imageUrl,
+    'backdrop_url': backdropUrl,
+    'description': description,
+    'container_extension': containerExtension,
+    'progress': progress,
+    'badge': badge,
+    'rating': rating,
+    'year': year,
+    'category_id': categoryId,
+    'is_adult': isAdult,
+  };
+
   static List<ContentItem> _parseEpisodes(dynamic value) {
     final maps = <Map<String, dynamic>>[];
     if (value is List) {
@@ -195,9 +217,16 @@ class ContentItem {
       }
     }
     return maps
-        .map(
-          (episode) => ContentItem.fromJson(episode, fallbackType: 'episode'),
-        )
+        .map((episode) {
+          final info = episode['info'];
+          if (info is Map) {
+            return ContentItem.fromJson(
+              <String, dynamic>{...info.cast<String, dynamic>(), ...episode},
+              fallbackType: 'episode',
+            );
+          }
+          return ContentItem.fromJson(episode, fallbackType: 'episode');
+        })
         .where((episode) => episode.id?.isNotEmpty == true)
         .toList(growable: false);
   }

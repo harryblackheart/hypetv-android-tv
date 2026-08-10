@@ -40,12 +40,11 @@ class _MediaCardState extends State<MediaCard> {
 
   @override
   Widget build(BuildContext context) {
-    final height = widget.width * .58;
     return Semantics(
       button: true,
       label: '${widget.item.title}, ${widget.item.subtitle}',
       child: AnimatedScale(
-        scale: _focused ? 1.08 : 1,
+        scale: _focused ? 1.06 : 1,
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOut,
         child: Focus(
@@ -76,99 +75,117 @@ class _MediaCardState extends State<MediaCard> {
                     : null,
               ),
               clipBehavior: Clip.antiAlias,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  SizedBox(
-                    height: height,
-                    width: double.infinity,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.network(
-                          widget.item.imageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const ColoredBox(
-                                color: AppColors.surfaceRaised,
-                                child: Icon(
-                                  Icons.movie_outlined,
-                                  size: 48,
-                                  color: Colors.white38,
-                                ),
-                              ),
-                        ),
-                        const DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.transparent, Colors.black87],
-                            ),
-                          ),
-                        ),
-                        if (widget.item.badge case final badge?)
-                          Positioned(
-                            left: 10,
-                            top: 10,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.red,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                badge,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                        Positioned(
-                          left: 14,
-                          right: 14,
-                          bottom: 12,
-                          child: Text(
-                            widget.item.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (widget.item.progress case final progress?)
-                    LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 4,
-                      color: AppColors.red,
-                      backgroundColor: Colors.white12,
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                    child: Text(
-                      widget.item.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 14,
+                  if (widget.item.imageUrl.isNotEmpty)
+                    Image.network(
+                      widget.item.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const _ArtworkFallback(),
+                    )
+                  else
+                    const _ArtworkFallback(),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0, .48, 1],
+                        colors: [
+                          Colors.transparent,
+                          Color(0x22000000),
+                          Color(0xEE000000),
+                        ],
                       ),
                     ),
                   ),
+                  if (widget.item.badge case final badge?)
+                    Positioned(
+                      left: 10,
+                      top: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.red,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          badge,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    left: 14,
+                    right: 14,
+                    bottom: widget.item.subtitle.isNotEmpty ? 30 : 14,
+                    child: Text(
+                      widget.item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  if (widget.item.subtitle.isNotEmpty)
+                    Positioned(
+                      left: 14,
+                      right: 14,
+                      bottom: 10,
+                      child: Text(
+                        widget.item.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  if (widget.item.progress case final progress?)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 4,
+                        color: AppColors.red,
+                        backgroundColor: Colors.white12,
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArtworkFallback extends StatelessWidget {
+  const _ArtworkFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: AppColors.surfaceRaised,
+      child: Center(
+        child: Icon(
+          Icons.movie_outlined,
+          size: 48,
+          color: Colors.white38,
         ),
       ),
     );
