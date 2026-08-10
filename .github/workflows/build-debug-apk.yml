@@ -1,9 +1,7 @@
-name: Build debug APK
+name: Build signed release APK
 
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -11,14 +9,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: debug-apk-${{ github.ref }}
+  group: release-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Analyse, test and build
+    name: Analyse, test and build signed release
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -41,7 +39,7 @@ jobs:
         run: flutter pub get
 
       - name: Format sources
-        run: dart format lib test
+        run: dart format --output=none --set-exit-if-changed lib test
 
       - name: Analyse
         run: flutter analyze
@@ -49,13 +47,42 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: Restore HypeTV release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/hypetv-release.jks
+          cat > android/key.properties <<EOF2
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=hypetv-release.jks
+          EOF2
 
-      - name: Upload APK
+      - name: Build signed release APK
+        run: flutter build apk --release
+
+      - name: Verify APK signature
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Remove temporary signing files
+        if: always()
+        run: rm -f android/app/hypetv-release.jks android/key.properties
+
+      - name: Upload signed release APK
         uses: actions/upload-artifact@v4
         with:
-          name: hypetv-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: hypetv-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
