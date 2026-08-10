@@ -1,0 +1,37 @@
+name: Validate iOS foundation
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate-ios:
+    name: Analyse, test and compile iOS
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Format check
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyse
+        run: flutter analyze
+      - name: Test
+        run: flutter test
+      - name: Generate disposable iOS runner for compile validation
+        if: ${{ hashFiles('ios/Runner.xcodeproj/project.pbxproj') == '' }}
+        run: flutter create --platforms=ios --org com.hypetv --project-name hypetv .
+      - name: Compile unsigned iOS release
+        run: flutter build ios --release --no-codesign

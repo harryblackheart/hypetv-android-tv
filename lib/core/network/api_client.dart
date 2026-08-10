@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:hypetv/core/constants/app_constants.dart';
+import 'package:hypetv/core/platform/app_platform.dart';
 
 final httpClientProvider = Provider<http.Client>((ref) {
   final client = http.Client();
@@ -48,7 +49,7 @@ class ApiClient {
           body: jsonEncode({
             'code': int.parse(code),
             'device_id': deviceId,
-            'platform': 'android_tv',
+            'platform': AppPlatform.activationId,
           }),
         )
         .timeout(const Duration(seconds: 15));
