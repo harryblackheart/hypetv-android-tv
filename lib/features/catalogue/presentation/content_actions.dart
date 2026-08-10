@@ -20,8 +20,9 @@ Future<void> openContent(
 ) async {
   final type = catalogueTypeOf(item);
   if (type == CatalogueType.series || type == CatalogueType.movie) {
-    if (item.id?.isNotEmpty == true && context.mounted) {
-      context.push('/details/${type!.apiName}/${item.id}', extra: item);
+    final providerId = item.upstreamId;
+    if (providerId?.isNotEmpty == true && context.mounted) {
+      context.push('/details/${type!.apiName}/$providerId', extra: item);
     }
     return;
   }

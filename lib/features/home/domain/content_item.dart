@@ -57,6 +57,27 @@ class ContentItem {
   final bool isAdult;
   final List<ContentItem> episodes;
 
+  /// Provider-side identifier used by the HypeTV API for details/playback.
+  /// Home catalogue IDs are namespaced (for example `movie:1234`) while
+  /// detail/playback endpoints expect the raw provider ID (`1234`).
+  String? get upstreamId {
+    final direct = sourceId?.trim();
+    if (direct != null && direct.isNotEmpty) return direct;
+    final playback = playbackId?.trim();
+    if (playback != null && playback.isNotEmpty && !playback.contains(':')) {
+      return playback;
+    }
+    final value = id?.trim();
+    if (value == null || value.isEmpty) return null;
+    final separator = value.indexOf(':');
+    return separator >= 0 && separator + 1 < value.length
+        ? value.substring(separator + 1)
+        : value;
+  }
+
+  /// Episodes resolve through the series playback route on the backend.
+  String get playbackType => type == 'episode' ? 'series' : (type ?? 'movie');
+
   factory ContentItem.fromJson(
     Map<String, dynamic> json, {
     String? fallbackType,
@@ -77,8 +98,8 @@ class ContentItem {
             ?.toString();
     return ContentItem(
       id: id,
-      sourceId: (json['source_id'] ?? json['stream_id'])?.toString(),
-      playbackId: (json['playback_id'] ?? json['playbackId'] ?? id)?.toString(),
+      sourceId: _sourceId(json, id),
+      playbackId: (json['playback_id'] ?? json['playbackId'] ?? _sourceId(json, id) ?? id)?.toString(),
       type: type,
       title: (json['title'] ?? json['name'])?.toString() ?? 'Untitled',
       subtitle:
@@ -113,6 +134,22 @@ class ContentItem {
       isAdult: _asBool(json['is_adult']),
       episodes: _parseEpisodes(rawEpisodes),
     );
+  }
+
+  static String? _sourceId(Map<String, dynamic> json, String? id) {
+    final value =
+        (json['source_id'] ??
+                json['stream_id'] ??
+                json['movie_id'] ??
+                json['series_id'] ??
+                json['episode_id'])
+            ?.toString();
+    if (value != null && value.isNotEmpty) return value;
+    if (id == null || id.isEmpty) return null;
+    final separator = id.indexOf(':');
+    return separator >= 0 && separator + 1 < id.length
+        ? id.substring(separator + 1)
+        : id;
   }
 
   static String? _firstImageUrl(dynamic value) {

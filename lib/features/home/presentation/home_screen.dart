@@ -366,6 +366,15 @@ class _NavLabelState extends State<_NavLabel> {
   }
 }
 
+String? _browseRouteForShelf(ContentShelf shelf) {
+  final id = (shelf.id ?? '').toLowerCase();
+  final itemType = shelf.items.isNotEmpty ? shelf.items.first.type : null;
+  if (itemType == 'live' || id.contains('live')) return '/live';
+  if (itemType == 'movie' || id.contains('movie')) return '/movies';
+  if (itemType == 'series' || id.contains('series')) return '/series';
+  return null;
+}
+
 class _ContentRail extends ConsumerWidget {
   const _ContentRail({
     required this.shelf,
@@ -389,9 +398,21 @@ class _ContentRail extends ConsumerWidget {
         children: [
           Padding(
             padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-            child: Text(
-              shelf.title,
-              style: Theme.of(context).textTheme.titleLarge,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    shelf.title,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                if (_browseRouteForShelf(shelf) case final route?)
+                  TextButton.icon(
+                    onPressed: () => context.push(route),
+                    icon: const Icon(Icons.grid_view_rounded, size: 20),
+                    label: const Text('Browse all'),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 16),

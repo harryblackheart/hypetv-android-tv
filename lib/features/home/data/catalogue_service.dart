@@ -206,12 +206,23 @@ class CatalogueService {
   }
 
   Future<ContentItem> fetchDetails(CatalogueType type, String id) async {
-    final body = await _get('/api/catalog/${type.pathSegment}/$id');
+    final providerId = _providerId(id);
+    final body = await _get('/api/catalog/${type.pathSegment}/$providerId');
     final container = _mapAt(body, const ['data']) ?? body;
-    final raw = Map<String, dynamic>.from(
-      _mapAt(container, const ['item', 'details', 'movie', 'series', 'info']) ??
-          container,
-    );
+
+    // Xtream-compatible detail endpoints are not shaped like catalogue rows.
+    // Movies commonly return {info, movie_data}; series return {info, episodes}.
+    // Merge those structures into the provider-neutral ContentItem contract.
+    final raw = <String, dynamic>{};
+    final movieData = _mapAt(container, const ['movie_data', 'movie']);
+    final info = _mapAt(container, const ['info', 'details', 'item', 'series']);
+    if (movieData != null) raw.addAll(movieData);
+    if (info != null) raw.addAll(info);
+    if (raw.isEmpty) raw.addAll(container);
+
+    raw['id'] = '${type.apiName}:$providerId';
+    raw['source_id'] = providerId;
+    raw['type'] = type.apiName;
     raw['episodes'] ??= container['episodes'] ?? body['episodes'];
     return ContentItem.fromJson(raw, fallbackType: type.apiName);
   }
@@ -225,12 +236,12 @@ class CatalogueService {
   }
 
   Future<PlaybackSource> resolvePlayback(ContentItem item) async {
-    final id = item.id ?? item.playbackId;
+    final id = item.upstreamId;
     if (id == null || id.isEmpty) {
       throw const CatalogueException('PLAYBACK_UNAVAILABLE');
     }
     final body = await _post('/api/playback/resolve', {
-      'content_type': item.type ?? 'movie',
+      'content_type': item.playbackType,
       'content_id': id,
       'container_extension': item.containerExtension?.isNotEmpty == true
           ? item.containerExtension
@@ -249,6 +260,14 @@ class CatalogueService {
         ? rawHeaders.map((key, value) => MapEntry('$key', '$value'))
         : const <String, String>{};
     return PlaybackSource(url: url, headers: headers);
+  }
+
+  String _providerId(String id) {
+    final trimmed = id.trim();
+    final separator = trimmed.indexOf(':');
+    return separator >= 0 && separator + 1 < trimmed.length
+        ? trimmed.substring(separator + 1)
+        : trimmed;
   }
 
   Future<Map<String, dynamic>> _get(
