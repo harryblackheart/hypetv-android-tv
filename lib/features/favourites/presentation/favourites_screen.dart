@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/catalogue/presentation/content_actions.dart';
+import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
 import 'package:hypetv/services/favourites_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
-class FavouritesScreen extends ConsumerWidget {
+class FavouritesScreen extends ConsumerStatefulWidget {
   const FavouritesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FavouritesScreen> createState() => _FavouritesScreenState();
+}
+
+class _FavouritesScreenState extends ConsumerState<FavouritesScreen> {
+  CatalogueType _selectedType = CatalogueType.live;
+
+  @override
+  Widget build(BuildContext context) {
     final favourites = ref.watch(favouritesProvider);
     return Scaffold(
       body: SafeArea(
@@ -29,9 +38,33 @@ class FavouritesScreen extends ConsumerWidget {
                   const BrandLogo(fontSize: 32),
                   const SizedBox(width: 30),
                   Text(
-                    'Favourites',
+                    '${_selectedType.title} Favourites',
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 64,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 54, vertical: 6),
+                children: [
+                  for (final type in CatalogueType.values)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: ChoiceChip(
+                        label: Text(type.title),
+                        selected: _selectedType == type,
+                        selectedColor: AppColors.red,
+                        backgroundColor: AppColors.surfaceRaised,
+                        side: BorderSide(
+                          color: _selectedType == type ? AppColors.red : Colors.white12,
+                        ),
+                        labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+                        onSelected: (_) => setState(() => _selectedType = type),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -41,13 +74,17 @@ class FavouritesScreen extends ConsumerWidget {
                 error: (_, _) => const Center(
                   child: Text('HypeTV could not load your favourites.'),
                 ),
-                data: (items) {
+                data: (allItems) {
+                  final items = allItems
+                      .where((item) => catalogueTypeOf(item) == _selectedType)
+                      .toList(growable: false);
                   if (items.isEmpty) {
-                    return const Center(
+                    return Center(
                       child: Text(
-                        'No favourites yet.\nAdd a favourite from a title or while watching.',
+                        'No ${_selectedType.title.toLowerCase()} favourites yet.\n'
+                        'Add favourites from a title or while watching.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 22),
+                        style: const TextStyle(fontSize: 22),
                       ),
                     );
                   }

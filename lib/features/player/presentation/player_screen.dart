@@ -108,6 +108,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     try {
       if (_controller.value.isInitialized) {
         await _controller.pause();
+        if (!_isLive) {
+          await ref.read(watchHistoryServiceProvider).saveProgress(
+            widget.arguments.item,
+            _controller.value.position,
+            _controller.value.duration,
+          );
+          ref.invalidate(watchHistoryProvider);
+        }
         await _controller.setVolume(0);
       }
     } catch (_) {
@@ -150,7 +158,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _controlsTimer?.cancel();
-    if (_controller.value.isInitialized) {
+    if (!_exiting && _controller.value.isInitialized) {
       unawaited(
         ref
             .read(watchHistoryServiceProvider)
@@ -158,7 +166,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               widget.arguments.item,
               _controller.value.position,
               _controller.value.duration,
-            ),
+            )
+            .then((_) => ref.invalidate(watchHistoryProvider)),
       );
     }
     _controller

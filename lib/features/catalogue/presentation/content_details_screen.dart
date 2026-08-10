@@ -130,14 +130,6 @@ class _ContentDetailsScreenState extends ConsumerState<ContentDetailsScreen> {
                     ),
                   ),
                   Positioned(
-                    left: 54,
-                    top: 34,
-                    child: IconButton.filledTonal(
-                      onPressed: context.pop,
-                      icon: const Icon(Icons.arrow_back_rounded),
-                    ),
-                  ),
-                  Positioned(
                     left: 70,
                     bottom: 58,
                     width: 720,
@@ -210,6 +202,18 @@ class _ContentDetailsScreenState extends ConsumerState<ContentDetailsScreen> {
                           ],
                         ),
                       ],
+                    ),
+                  ),
+                  Positioned(
+                    left: 54,
+                    top: 34,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: IconButton.filledTonal(
+                        tooltip: 'Back',
+                        onPressed: context.pop,
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
                     ),
                   ),
                 ],

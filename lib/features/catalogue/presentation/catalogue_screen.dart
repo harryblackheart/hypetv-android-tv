@@ -9,6 +9,8 @@ import 'package:hypetv/features/catalogue/presentation/content_actions.dart';
 import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
+import 'package:hypetv/services/favourites_service.dart';
+import 'package:hypetv/services/watch_history_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
 class CatalogueScreen extends ConsumerStatefulWidget {
@@ -27,6 +29,9 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
   var _loading = true;
 
   bool get _requiresCategory => widget.type != CatalogueType.live;
+
+  static const _favouritesCategory = '__favourites__';
+  static const _continueCategory = '__continue__';
 
   @override
   void initState() {
@@ -47,17 +52,30 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
       }
 
       var effectiveCategory = categoryId;
-      if (_requiresCategory &&
-          (effectiveCategory == null || effectiveCategory.isEmpty) &&
-          categories.isNotEmpty) {
-        effectiveCategory = categories.first.id;
-      }
+      List<ContentItem> items;
 
-      final items = await service.fetchItems(
-        widget.type,
-        categoryId: effectiveCategory,
-        limit: 60,
-      );
+      if (effectiveCategory == _favouritesCategory) {
+        final favourites = await ref.read(favouritesProvider.future);
+        items = favourites
+            .where((item) => catalogueTypeOf(item) == widget.type)
+            .toList(growable: false);
+      } else if (effectiveCategory == _continueCategory) {
+        final history = await ref.read(watchHistoryProvider.future);
+        items = history
+            .where((item) => catalogueTypeOf(item) == widget.type)
+            .toList(growable: false);
+      } else {
+        if (_requiresCategory &&
+            (effectiveCategory == null || effectiveCategory.isEmpty) &&
+            categories.isNotEmpty) {
+          effectiveCategory = categories.first.id;
+        }
+        items = await service.fetchItems(
+          widget.type,
+          categoryId: effectiveCategory,
+          limit: 60,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _categories = categories;
@@ -124,6 +142,17 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                     vertical: 6,
                   ),
                   children: [
+                    _CategoryChip(
+                      label: 'Favourites',
+                      selected: _selectedCategory == _favouritesCategory,
+                      onPressed: () => _load(categoryId: _favouritesCategory),
+                    ),
+                    if (widget.type != CatalogueType.live)
+                      _CategoryChip(
+                        label: 'Continue Watching',
+                        selected: _selectedCategory == _continueCategory,
+                        onPressed: () => _load(categoryId: _continueCategory),
+                      ),
                     if (!_requiresCategory)
                       _CategoryChip(
                         label: 'All',
