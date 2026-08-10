@@ -50,25 +50,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       data: (shelves) {
         final history = ref.watch(watchHistoryProvider).value ?? const [];
-        final hasContinueWatching = shelves.any(
+        final contentShelves = shelves
+            .where((shelf) => shelf.items.isNotEmpty)
+            .toList(growable: false);
+        final hasContinueWatching = contentShelves.any(
           (shelf) => shelf.title.toLowerCase().contains('continue watching'),
         );
         final experienceShelves = history.isNotEmpty && !hasContinueWatching
             ? [
                 ContentShelf(title: 'Continue Watching', items: history),
-                ...shelves,
+                ...contentShelves,
               ]
-            : shelves;
+            : contentShelves;
         if (experienceShelves.isEmpty) {
           return _HomeFrame(
             child: CatalogueStateView(
-              title: 'Your catalogue is empty',
-              message: 'There is no content available for this account yet.',
+              title: 'Nothing to watch yet',
+              message: 'No content is currently available for this account.',
               onRetry: () => ref.invalidate(homeCatalogueProvider),
             ),
           );
         }
-        return _LoadedHome(shelves: experienceShelves);
+        return _LoadedHome(
+          shelves: experienceShelves,
+          partiallyLoaded: shelves.any((shelf) => shelf.items.isEmpty),
+        );
       },
     );
   }
@@ -97,8 +103,9 @@ class _HomeFrame extends StatelessWidget {
 }
 
 class _LoadedHome extends ConsumerWidget {
-  const _LoadedHome({required this.shelves});
+  const _LoadedHome({required this.shelves, required this.partiallyLoaded});
   final List<ContentShelf> shelves;
+  final bool partiallyLoaded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -121,6 +128,31 @@ class _LoadedHome extends ConsumerWidget {
                   horizontalPadding: horizontalPadding,
                 ),
               ),
+              if (partiallyLoaded)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      0,
+                      horizontalPadding,
+                      28,
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 20,
+                          color: AppColors.muted,
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Some catalogue sections are currently empty.',
+                          style: TextStyle(color: AppColors.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               for (var index = 0; index < shelves.length; index++)
                 SliverToBoxAdapter(
                   child: _ContentRail(
