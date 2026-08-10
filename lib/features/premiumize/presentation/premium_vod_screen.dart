@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/activation/presentation/activation_controller.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
-import 'package:hypetv/features/platform/domain/app_bootstrap.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
 import 'package:hypetv/features/premiumize/data/premiumize_service.dart';
 import 'package:hypetv/features/premiumize/domain/premiumize_item.dart';
