@@ -9,7 +9,6 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
 import 'package:hypetv/features/premiumize/data/premiumize_service.dart';
 import 'package:hypetv/features/premiumize/domain/premiumize_item.dart';
-import 'package:hypetv/services/platform_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
 class PremiumVodScreen extends ConsumerStatefulWidget {
