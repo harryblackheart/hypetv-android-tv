@@ -68,6 +68,15 @@ class ProviderService {
     return PlaybackSource(url:url,headers:headers);
   }
 
-  Map<String,dynamic> _decode(String source){try{final d=jsonDecode(source);return d is Map<String,dynamic>?d:const {}}catch(_){return const {}}}
+  Map<String, dynamic> _decode(String source) {
+    try {
+      final decoded = jsonDecode(source);
+      return decoded is Map<String, dynamic>
+          ? decoded
+          : const <String, dynamic>{};
+    } catch (_) {
+      return const <String, dynamic>{};
+    }
+  }
   void _throw(http.Response r,Map<String,dynamic> b){if(r.statusCode>=200&&r.statusCode<300&&b['success']!=false)return;final code=b['code']?.toString();throw ProviderException(b['message']?.toString()??'Content provider is unavailable.',code:code);}
 }
