@@ -26,7 +26,12 @@ class ProviderService {
 
   Future<Map<String,String>> _headers() async {
     final token=await _storage.activationToken;
-    if(token==null||token.isEmpty) throw const ProviderException('Your HypeTV session has expired.',code:'UNAUTHENTICATED');
+    if (token == null || token.isEmpty) {
+      throw const ProviderException(
+        'Your HypeTV session has expired.',
+        code: 'UNAUTHENTICATED',
+      );
+    }
     final info=await PackageInfo.fromPlatform();
     return {HttpHeaders.acceptHeader:'application/json',HttpHeaders.authorizationHeader:'Bearer $token','X-App-Version':info.version};
   }
@@ -36,12 +41,14 @@ class ProviderService {
     final b=_decode(r.body); _throw(r,b);
     final out=<ProviderCatalog>[];
     final providers=b['providers'];
-    if(providers is List){for(final raw in providers.whereType<Map<String,dynamic>>()){
+    if (providers is List) {
+      for (final raw in providers.whereType<Map<String, dynamic>>()) {
       final pid=raw['id']?.toString()??'', pname=raw['name']?.toString()??'Provider';
       final cats=raw['catalogs']; if(cats is List){for(final c in cats.whereType<Map<String,dynamic>>()){
         final id=c['id']?.toString()??'', type=c['type']?.toString()??''; if(id.isNotEmpty&&type.isNotEmpty) out.add(ProviderCatalog(providerId:pid,providerName:pname,id:id,type:type,name:c['name']?.toString()??id));
       }}
-    }}
+      }
+    }
     return out;
   }
 
@@ -62,9 +69,20 @@ class ProviderService {
   Future<PlaybackSource> resolve({required String providerId,required String type,required String id}) async {
     final uri=Uri.parse('${AppConstants.apiBaseUrl}/api/providers/${Uri.encodeComponent(providerId)}/playback');
     final r=await _client.post(uri,headers:{...await _headers(),HttpHeaders.contentTypeHeader:'application/json'},body:jsonEncode({'type':type,'id':id,'stream_index':0})).timeout(const Duration(seconds:30));
-    final b=_decode(r.body); _throw(r,b); final p=b['playback']; if(p is! Map<String,dynamic>) throw const ProviderException('HypeTV could not prepare this source.');
-    final url=p['url']?.toString()??''; if(url.isEmpty) throw const ProviderException('No playable source was returned.');
-    final headers=<String,String>{}; final rh=p['headers']; if(rh is Map){for(final e in rh.entries) headers[e.key.toString()]=e.value.toString();}
+    final b=_decode(r.body); _throw(r,b); final p=b['playback'];
+    if (p is! Map<String, dynamic>) {
+      throw const ProviderException('HypeTV could not prepare this source.');
+    }
+    final url=p['url']?.toString()??'';
+    if (url.isEmpty) {
+      throw const ProviderException('No playable source was returned.');
+    }
+    final headers=<String,String>{}; final rh=p['headers'];
+    if (rh is Map) {
+      for (final e in rh.entries) {
+        headers[e.key.toString()] = e.value.toString();
+      }
+    }
     return PlaybackSource(url:url,headers:headers);
   }
 
@@ -78,5 +96,14 @@ class ProviderService {
       return const <String, dynamic>{};
     }
   }
-  void _throw(http.Response r,Map<String,dynamic> b){if(r.statusCode>=200&&r.statusCode<300&&b['success']!=false)return;final code=b['code']?.toString();throw ProviderException(b['message']?.toString()??'Content provider is unavailable.',code:code);}
+  void _throw(http.Response r, Map<String, dynamic> b) {
+    if (r.statusCode >= 200 && r.statusCode < 300 && b['success'] != false) {
+      return;
+    }
+    final code = b['code']?.toString();
+    throw ProviderException(
+      b['message']?.toString() ?? 'Content provider is unavailable.',
+      code: code,
+    );
+  }
 }
