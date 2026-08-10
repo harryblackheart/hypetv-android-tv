@@ -10,8 +10,6 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/favourites/presentation/favourites_screen.dart';
 import 'package:hypetv/features/home/presentation/home_screen.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
-import 'package:hypetv/features/premiumize/presentation/premium_vod_screen.dart';
-import 'package:hypetv/features/providers/presentation/provider_discover_screen.dart';
 import 'package:hypetv/features/platform/presentation/platform_gate.dart';
 import 'package:hypetv/features/settings/presentation/settings_screen.dart';
 import 'package:hypetv/features/splash/presentation/splash_screen.dart';
@@ -46,16 +44,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const PlatformGate(
           child: CatalogueScreen(type: CatalogueType.series),
         ),
-      ),
-      GoRoute(
-        path: '/premium',
-        builder: (context, state) =>
-            const PlatformGate(child: PremiumVodScreen()),
-      ),
-      GoRoute(
-        path: '/premium/discover',
-        builder: (context, state) =>
-            const PlatformGate(child: ProviderDiscoverScreen()),
       ),
       GoRoute(
         path: '/search',

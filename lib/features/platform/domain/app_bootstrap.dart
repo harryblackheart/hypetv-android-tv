@@ -1,26 +1,5 @@
 enum AppMessagePriority { normal, important, critical }
 
-
-class AppEntitlements {
-  const AppEntitlements({
-    required this.hypeCatalogue,
-    required this.premiumVod,
-    required this.mode,
-  });
-
-  final bool hypeCatalogue;
-  final bool premiumVod;
-  final String mode;
-
-  factory AppEntitlements.fromJson(Map<String, dynamic> json) {
-    return AppEntitlements(
-      hypeCatalogue: json['hype_catalogue'] != false,
-      premiumVod: json['premium_vod'] == true,
-      mode: json['mode']?.toString() ?? 'hype_only',
-    );
-  }
-}
-
 class MaintenanceStatus {
   const MaintenanceStatus({
     required this.enabled,
@@ -70,26 +49,17 @@ class AppMessage {
 }
 
 class AppBootstrap {
-  const AppBootstrap({
-    required this.maintenance,
-    required this.messages,
-    required this.entitlements,
-  });
+  const AppBootstrap({required this.maintenance, required this.messages});
 
   final MaintenanceStatus maintenance;
   final List<AppMessage> messages;
-  final AppEntitlements entitlements;
 
   factory AppBootstrap.fromJson(Map<String, dynamic> json) {
     final maintenanceJson = json['maintenance'];
     final messageJson = json['messages'];
-    final entitlementJson = json['entitlements'];
     return AppBootstrap(
       maintenance: MaintenanceStatus.fromJson(
         maintenanceJson is Map<String, dynamic> ? maintenanceJson : const {},
-      ),
-      entitlements: AppEntitlements.fromJson(
-        entitlementJson is Map<String, dynamic> ? entitlementJson : const {},
       ),
       messages: messageJson is List
           ? messageJson
