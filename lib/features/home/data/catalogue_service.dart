@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:hypetv/core/constants/app_constants.dart';
@@ -10,6 +11,46 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/services/secure_storage_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+class HomeCatalogueDiagnostics {
+  const HomeCatalogueDiagnostics({
+    this.responseStatus,
+    this.topLevelKeys = const [],
+    this.sectionIds = const [],
+    this.itemCounts = const {},
+    this.lastErrorCode,
+  });
+
+  final int? responseStatus;
+  final List<String> topLevelKeys;
+  final List<String> sectionIds;
+  final Map<String, int> itemCounts;
+  final String? lastErrorCode;
+
+  int get sectionCount => sectionIds.length;
+  int get totalItemCount =>
+      itemCounts.values.fold(0, (sum, count) => sum + count);
+}
+
+class CatalogueDiagnosticsController
+    extends Notifier<HomeCatalogueDiagnostics> {
+  @override
+  HomeCatalogueDiagnostics build() => const HomeCatalogueDiagnostics();
+
+  void record(HomeCatalogueDiagnostics diagnostics) => state = diagnostics;
+
+  void recordError(String code, int? statusCode) {
+    state = HomeCatalogueDiagnostics(
+      responseStatus: statusCode,
+      lastErrorCode: code,
+    );
+  }
+}
+
+final catalogueDiagnosticsProvider =
+    NotifierProvider<CatalogueDiagnosticsController, HomeCatalogueDiagnostics>(
+      CatalogueDiagnosticsController.new,
+    );
+
 final catalogueServiceProvider = Provider<CatalogueService>(
   (ref) => CatalogueService(
     ref.watch(httpClientProvider),
@@ -17,9 +58,27 @@ final catalogueServiceProvider = Provider<CatalogueService>(
   ),
 );
 
-final homeCatalogueProvider = FutureProvider<List<ContentShelf>>((ref) {
-  return ref.watch(catalogueServiceProvider).fetchHome();
+final homeCatalogueProvider = FutureProvider<List<ContentShelf>>((ref) async {
+  try {
+    final result = await ref.watch(catalogueServiceProvider).fetchHomeResult();
+    ref.read(catalogueDiagnosticsProvider.notifier).record(result.diagnostics);
+    return result.sections;
+  } on CatalogueException catch (error) {
+    ref
+        .read(catalogueDiagnosticsProvider.notifier)
+        .recordError(error.code, error.statusCode);
+    rethrow;
+  }
 });
+
+class HomeCatalogueResult {
+  const HomeCatalogueResult({
+    required this.sections,
+    required this.diagnostics,
+  });
+  final List<ContentShelf> sections;
+  final HomeCatalogueDiagnostics diagnostics;
+}
 
 class CatalogueException implements Exception {
   const CatalogueException(this.code, {this.statusCode});
@@ -28,12 +87,25 @@ class CatalogueException implements Exception {
   final int? statusCode;
 
   bool get isAuthenticationRejected =>
-      code == 'DEVICE_TOKEN_REJECTED' || statusCode == 401 || statusCode == 403;
+      code == 'DEVICE_TOKEN_REJECTED' || code == 'UNAUTHENTICATED';
 
   String get userMessage => switch (code) {
     'SOURCE_NOT_CONFIGURED' =>
       'No streaming source has been configured for this account.',
+    'SOURCE_DISABLED' =>
+      'The streaming source for this account is currently disabled.',
+    'SOURCE_AUTH_FAILED' =>
+      'HypeTV could not authenticate with the streaming source. Please contact support.',
     'SOURCE_UNAVAILABLE' => 'The HypeTV catalogue is temporarily unavailable.',
+    'SOURCE_TIMEOUT' => 'The HypeTV catalogue is temporarily unavailable.',
+    'SUBSCRIPTION_EXPIRED' =>
+      'Your HypeTV subscription has expired. Please renew your account.',
+    'CUSTOMER_SUSPENDED' =>
+      'This HypeTV account is currently suspended. Please contact support.',
+    'DEVICE_BLOCKED' =>
+      'This device has been blocked. Please contact HypeTV support.',
+    'UNAUTHENTICATED' =>
+      'Your activation has expired. Please activate HypeTV again.',
     'DEVICE_TOKEN_REJECTED' => 'This device needs to be activated again.',
     _ => 'HypeTV could not load the catalogue. Please try again.',
   };
@@ -62,14 +134,50 @@ class CatalogueService {
     return (await PackageInfo.fromPlatform()).version;
   }
 
-  Future<List<ContentShelf>> fetchHome() async {
-    final body = await _get('/api/catalog/home');
-    final rawShelves = _listAt(body, const ['shelves']);
-    return rawShelves
+  Future<List<ContentShelf>> fetchHome() async =>
+      (await fetchHomeResult()).sections;
+
+  Future<HomeCatalogueResult> fetchHomeResult() async {
+    final response = await _getResponse('/api/catalog/home');
+    final body = response.body;
+    if (body['success'] == false) {
+      throw CatalogueException(
+        _errorCode(body),
+        statusCode: response.statusCode,
+      );
+    }
+    final rawSections = _listAt(body, const ['sections', 'shelves']);
+    final sections = rawSections
         .whereType<Map<String, dynamic>>()
         .map(ContentShelf.fromJson)
-        .where((shelf) => shelf.title.isNotEmpty && shelf.items.isNotEmpty)
+        .where(
+          (shelf) => shelf.title.isNotEmpty || shelf.id?.isNotEmpty == true,
+        )
         .toList(growable: false);
+    final sectionIds = <String>[
+      for (var index = 0; index < sections.length; index++)
+        sections[index].id?.isNotEmpty == true
+            ? sections[index].id!
+            : 'section_$index',
+    ];
+    final counts = <String, int>{
+      for (var index = 0; index < sections.length; index++)
+        sectionIds[index]: sections[index].items.length,
+    };
+    final diagnostics = HomeCatalogueDiagnostics(
+      responseStatus: response.statusCode,
+      topLevelKeys: body.keys.toList(growable: false),
+      sectionIds: sectionIds,
+      itemCounts: counts,
+    );
+    if (kDebugMode) {
+      debugPrint(
+        '[HypeTV catalogue] status=${response.statusCode} '
+        'keys=${diagnostics.topLevelKeys} sections=${sections.length} '
+        'section_ids=$sectionIds item_counts=$counts',
+      );
+    }
+    return HomeCatalogueResult(sections: sections, diagnostics: diagnostics);
   }
 
   Future<List<CatalogueCategory>> fetchCategories(CatalogueType type) async {
@@ -147,6 +255,13 @@ class CatalogueService {
     String path, {
     Map<String, String>? query,
   }) async {
+    return (await _getResponse(path, query: query)).body;
+  }
+
+  Future<_CatalogueHttpResponse> _getResponse(
+    String path, {
+    Map<String, String>? query,
+  }) async {
     final uri = Uri.parse(
       '${AppConstants.apiBaseUrl}$path',
     ).replace(queryParameters: query?.isEmpty == false ? query : null);
@@ -154,7 +269,10 @@ class CatalogueService {
       final response = await _client
           .get(uri, headers: await _headers())
           .timeout(const Duration(seconds: 20));
-      return _handleResponse(response);
+      return _CatalogueHttpResponse(
+        statusCode: response.statusCode,
+        body: _handleResponse(response),
+      );
     } on CatalogueException {
       rethrow;
     } on TimeoutException {
@@ -207,24 +325,34 @@ class CatalogueService {
   Map<String, dynamic> _handleResponse(http.Response response) {
     final body = _decode(response.body);
     if (response.statusCode == 401 || response.statusCode == 403) {
-      unawaited(clearActivation?.call() ?? _storage.clearActivation());
-      throw CatalogueException(
-        'DEVICE_TOKEN_REJECTED',
-        statusCode: response.statusCode,
-      );
+      final backendCode = _errorCode(body);
+      final code = backendCode == 'CATALOGUE_ERROR'
+          ? 'DEVICE_TOKEN_REJECTED'
+          : backendCode;
+      if (code == 'DEVICE_TOKEN_REJECTED' || code == 'UNAUTHENTICATED') {
+        unawaited(clearActivation?.call() ?? _storage.clearActivation());
+      }
+      throw CatalogueException(code, statusCode: response.statusCode);
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw CatalogueException(
-        (body['code'] ??
-                body['error_code'] ??
-                (body['error'] is String ? body['error'] : null) ??
-                'CATALOGUE_ERROR')
-            .toString()
-            .toUpperCase(),
+        _errorCode(body),
         statusCode: response.statusCode,
       );
     }
     return body;
+  }
+
+  String _errorCode(Map<String, dynamic> body) {
+    final error = body['error'];
+    final nestedCode = error is Map ? error['code'] : null;
+    return (body['code'] ??
+            body['error_code'] ??
+            nestedCode ??
+            (error is String ? error : null) ??
+            'CATALOGUE_ERROR')
+        .toString()
+        .toUpperCase();
   }
 
   Map<String, dynamic> _decode(String source) {
@@ -279,4 +407,10 @@ class CatalogueService {
         .where((item) => item.id?.isNotEmpty == true)
         .toList(growable: false);
   }
+}
+
+class _CatalogueHttpResponse {
+  const _CatalogueHttpResponse({required this.statusCode, required this.body});
+  final int statusCode;
+  final Map<String, dynamic> body;
 }

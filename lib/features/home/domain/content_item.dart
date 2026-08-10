@@ -24,6 +24,7 @@ class ContentItem {
     required this.subtitle,
     required this.imageUrl,
     this.id,
+    this.sourceId,
     this.playbackId,
     this.type,
     this.backdropUrl,
@@ -31,10 +32,15 @@ class ContentItem {
     this.containerExtension,
     this.progress,
     this.badge,
+    this.rating,
+    this.year,
+    this.categoryId,
+    this.isAdult = false,
     this.episodes = const [],
   });
 
   final String? id;
+  final String? sourceId;
   final String? playbackId;
   final String? type;
   final String title;
@@ -45,6 +51,10 @@ class ContentItem {
   final String? containerExtension;
   final double? progress;
   final String? badge;
+  final double? rating;
+  final int? year;
+  final String? categoryId;
+  final bool isAdult;
   final List<ContentItem> episodes;
 
   factory ContentItem.fromJson(
@@ -67,6 +77,7 @@ class ContentItem {
             ?.toString();
     return ContentItem(
       id: id,
+      sourceId: (json['source_id'] ?? json['stream_id'])?.toString(),
       playbackId: (json['playback_id'] ?? json['playbackId'] ?? id)?.toString(),
       type: type,
       title: (json['title'] ?? json['name'])?.toString() ?? 'Untitled',
@@ -96,6 +107,10 @@ class ContentItem {
           ? rawProgress.toDouble().clamp(0.0, 1.0).toDouble()
           : null,
       badge: json['badge']?.toString(),
+      rating: _asDouble(json['rating']),
+      year: _asInt(json['year']),
+      categoryId: json['category_id']?.toString(),
+      isAdult: _asBool(json['is_adult']),
       episodes: _parseEpisodes(rawEpisodes),
     );
   }
@@ -104,6 +119,25 @@ class ContentItem {
     if (value is List && value.isNotEmpty) return value.first?.toString();
     return value?.toString();
   }
+
+  static double? _asDouble(dynamic value) => switch (value) {
+    num number => number.toDouble(),
+    String text => double.tryParse(text),
+    _ => null,
+  };
+
+  static int? _asInt(dynamic value) => switch (value) {
+    int number => number,
+    num number => number.toInt(),
+    String text => int.tryParse(text),
+    _ => null,
+  };
+
+  static bool _asBool(dynamic value) => switch (value) {
+    true || 1 || '1' => true,
+    String text => text.toLowerCase() == 'true',
+    _ => false,
+  };
 
   static List<ContentItem> _parseEpisodes(dynamic value) {
     final maps = <Map<String, dynamic>>[];

@@ -44,6 +44,7 @@ class WatchHistoryService {
       if (progress < .95)
         ContentItem(
           id: item.id,
+          sourceId: item.sourceId,
           playbackId: item.playbackId,
           type: item.type,
           title: item.title,
@@ -53,6 +54,10 @@ class WatchHistoryService {
           description: item.description,
           containerExtension: item.containerExtension,
           badge: item.badge,
+          rating: item.rating,
+          year: item.year,
+          categoryId: item.categoryId,
+          isAdult: item.isAdult,
           progress: progress.clamp(0.0, 1.0),
         ),
       ...existing.where((entry) => entry.id != item.id),
@@ -64,6 +69,7 @@ class WatchHistoryService {
 
   Map<String, dynamic> _toJson(ContentItem item) => {
     'id': item.id,
+    'source_id': item.sourceId,
     'playback_id': item.playbackId,
     'content_type': item.type,
     'title': item.title,
@@ -73,6 +79,10 @@ class WatchHistoryService {
     'description': item.description,
     'container_extension': item.containerExtension,
     'badge': item.badge,
+    'rating': item.rating,
+    'year': item.year,
+    'category_id': item.categoryId,
+    'is_adult': item.isAdult,
     'progress': item.progress,
   };
 }
