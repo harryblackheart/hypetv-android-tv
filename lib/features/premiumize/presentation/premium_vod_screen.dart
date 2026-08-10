@@ -179,12 +179,25 @@ class _PremiumVodScreenState extends ConsumerState<PremiumVodScreen> {
                     ),
                   ),
                   const Spacer(),
-                  if (canUseHype)
+                  TextButton.icon(
+                    onPressed: () => context.go('/premium/discover'),
+                    icon: const Icon(Icons.explore_rounded),
+                    label: const Text('Discover'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () => context.go('/settings'),
+                    icon: const Icon(Icons.settings_rounded),
+                    label: const Text('Settings'),
+                  ),
+                  if (canUseHype) ...[
+                    const SizedBox(width: 8),
                     TextButton.icon(
                       onPressed: () => context.go('/home'),
                       icon: const Icon(Icons.home_rounded),
                       label: const Text('Home'),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: 22),
