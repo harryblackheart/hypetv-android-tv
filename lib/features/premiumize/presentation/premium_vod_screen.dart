@@ -25,6 +25,7 @@ class _PremiumVodScreenState extends ConsumerState<PremiumVodScreen> {
   Object? _error;
   var _loading = true;
   final _searchController = TextEditingController();
+  final _searchFocus = FocusNode();
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _PremiumVodScreenState extends ConsumerState<PremiumVodScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -59,7 +61,10 @@ class _PremiumVodScreenState extends ConsumerState<PremiumVodScreen> {
 
   Future<void> _search() async {
     final q = _searchController.text.trim();
-    if (q.length < 2) return;
+    if (q.length < 2) {
+      _searchFocus.requestFocus();
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -132,11 +137,28 @@ class _PremiumVodScreenState extends ConsumerState<PremiumVodScreen> {
     }
   }
 
+  void _goBack(bool canUseHype) {
+    if (_searchResults != null) {
+      setState(() => _searchResults = null);
+      return;
+    }
+    if (_folder?.parentId?.isNotEmpty == true) {
+      unawaited(_loadFolder(_folder!.parentId));
+      return;
+    }
+    if (canUseHype && context.canPop()) {
+      context.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bootstrap = ref.watch(appBootstrapProvider).value;
     final canUseHype = bootstrap?.entitlements.hypeCatalogue ?? true;
     final items = _searchResults ?? _folder?.items ?? const <PremiumizeItem>[];
+    final folders = items.where((item) => item.isFolder).toList(growable: false);
+    final videos = items.where((item) => !item.isFolder).toList(growable: false);
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -147,63 +169,69 @@ class _PremiumVodScreenState extends ConsumerState<PremiumVodScreen> {
               Row(
                 children: [
                   const BrandLogo(),
-                  const SizedBox(width: 42),
-                  if (canUseHype)
-                    TextButton(
-                      onPressed: () => context.go('/home'),
-                      child: const Text('Home'),
-                    ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 34),
                   const Text(
                     'Premium VOD',
                     style: TextStyle(
-                      fontSize: 22,
+                      fontSize: 28,
                       fontWeight: FontWeight.w900,
                       color: AppColors.red,
                     ),
                   ),
                   const Spacer(),
-                  SizedBox(
-                    width: 360,
-                    child: TextField(
-                      controller: _searchController,
-                      onSubmitted: (_) => _search(),
-                      decoration: const InputDecoration(
-                        hintText: 'Search Premium VOD',
-                        prefixIcon: Icon(Icons.search_rounded),
-                      ),
+                  if (canUseHype)
+                    TextButton.icon(
+                      onPressed: () => context.go('/home'),
+                      icon: const Icon(Icons.home_rounded),
+                      label: const Text('Home'),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: _search,
-                    child: const Text('Search'),
-                  ),
                 ],
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 22),
               Row(
                 children: [
                   IconButton(
                     autofocus: true,
                     tooltip: 'Back',
-                    onPressed: () {
-                      if (_searchResults != null) {
-                        setState(() => _searchResults = null);
-                      } else if (_folder?.parentId?.isNotEmpty == true) {
-                        unawaited(_loadFolder(_folder!.parentId));
-                      } else if (canUseHype) {
-                        context.pop();
-                      }
-                    },
+                    onPressed: () => _goBack(canUseHype),
                     icon: const Icon(Icons.arrow_back_rounded),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
+                    child: TextField(
+                      focusNode: _searchFocus,
+                      controller: _searchController,
+                      onSubmitted: (_) => _search(),
+                      decoration: const InputDecoration(
+                        hintText: 'Search your Premium VOD library',
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: _search,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Search'),
+                  ),
+                  const SizedBox(width: 10),
+                  OutlinedButton.icon(
+                    onPressed: () => _loadFolder(_folder?.id),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Refresh'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
                     child: Text(
                       _searchResults != null
                           ? 'Search results'
-                          : (_folder?.name ?? 'Premium VOD'),
+                          : (_folder?.parentId?.isNotEmpty == true
+                              ? (_folder?.name ?? 'Premium VOD')
+                              : 'Premium VOD'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.headlineMedium,
@@ -226,36 +254,158 @@ class _PremiumVodScreenState extends ConsumerState<PremiumVodScreen> {
                             onRetry: () => _loadFolder(_folder?.id),
                           )
                         : items.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'No video files are available here.',
-                                  style: TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 20,
-                                  ),
-                                ),
+                            ? _PremiumEmptyState(
+                                isSearch: _searchResults != null,
+                                onSearch: () => _searchFocus.requestFocus(),
+                                onRefresh: () => _loadFolder(_folder?.id),
                               )
-                            : GridView.builder(
-                                gridDelegate:
-                                    const SliverGridDelegateWithMaxCrossAxisExtent(
-                                  maxCrossAxisExtent: 390,
-                                  mainAxisExtent: 116,
-                                  crossAxisSpacing: 16,
-                                  mainAxisSpacing: 16,
-                                ),
-                                itemCount: items.length,
-                                itemBuilder: (context, index) {
-                                  final item = items[index];
-                                  return _PremiumTile(
-                                    item: item,
-                                    autofocus: index == 0,
-                                    onPressed: () => _open(item),
-                                  );
-                                },
+                            : _PremiumLibrary(
+                                folders: folders,
+                                videos: videos,
+                                onOpen: _open,
                               ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumLibrary extends StatelessWidget {
+  const _PremiumLibrary({
+    required this.folders,
+    required this.videos,
+    required this.onOpen,
+  });
+
+  final List<PremiumizeItem> folders;
+  final List<PremiumizeItem> videos;
+  final ValueChanged<PremiumizeItem> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      slivers: [
+        if (folders.isNotEmpty) ...[
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Folders',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+          SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 390,
+              mainAxisExtent: 116,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _PremiumTile(
+                item: folders[index],
+                autofocus: index == 0,
+                onPressed: () => onOpen(folders[index]),
+              ),
+              childCount: folders.length,
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 28)),
+        ],
+        if (videos.isNotEmpty) ...[
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Videos',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+          SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 390,
+              mainAxisExtent: 116,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _PremiumTile(
+                item: videos[index],
+                autofocus: folders.isEmpty && index == 0,
+                onPressed: () => onOpen(videos[index]),
+              ),
+              childCount: videos.length,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PremiumEmptyState extends StatelessWidget {
+  const _PremiumEmptyState({
+    required this.isSearch,
+    required this.onSearch,
+    required this.onRefresh,
+  });
+
+  final bool isSearch;
+  final VoidCallback onSearch;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSearch ? Icons.search_off_rounded : Icons.video_library_rounded,
+              size: 72,
+              color: AppColors.red,
+            ),
+            const SizedBox(height: 22),
+            Text(
+              isSearch ? 'No matching Premium VOD videos' : 'Your Premium VOD library is empty',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isSearch
+                  ? 'Try another title or clear the search to browse the library.'
+                  : 'There are no videos or folders available for this Premium VOD account yet.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.muted, fontSize: 19),
+            ),
+            const SizedBox(height: 26),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 14,
+              runSpacing: 14,
+              children: [
+                FilledButton.icon(
+                  autofocus: true,
+                  onPressed: onSearch,
+                  icon: const Icon(Icons.search_rounded),
+                  label: const Text('Search library'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Refresh'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -302,9 +452,7 @@ class _PremiumTileState extends State<_PremiumTile> {
           child: Row(
             children: [
               Icon(
-                item.isFolder
-                    ? Icons.folder_rounded
-                    : Icons.play_circle_fill_rounded,
+                item.isFolder ? Icons.folder_rounded : Icons.play_circle_fill_rounded,
                 color: item.isFolder ? Colors.white70 : AppColors.red,
                 size: 44,
               ),
@@ -318,10 +466,7 @@ class _PremiumTileState extends State<_PremiumTile> {
                       item.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -361,7 +506,11 @@ class _PremiumError extends StatelessWidget {
           const SizedBox(height: 18),
           Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 20),
-          FilledButton(autofocus: true, onPressed: onRetry, child: const Text('Try again')),
+          FilledButton(
+            autofocus: true,
+            onPressed: onRetry,
+            child: const Text('Try again'),
+          ),
         ],
       ),
     );
