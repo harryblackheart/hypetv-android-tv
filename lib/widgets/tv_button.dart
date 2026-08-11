@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
+import 'package:hypetv/widgets/tv_action.dart';
 
 class TvButton extends StatefulWidget {
   const TvButton({
@@ -31,6 +32,7 @@ class _TvButtonState extends State<TvButton> {
       duration: const Duration(milliseconds: 140),
       child: Focus(
         autofocus: widget.autofocus,
+        onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
         onFocusChange: (value) => setState(() => _focused = value),
         child: FilledButton.icon(
           onPressed: widget.onPressed,

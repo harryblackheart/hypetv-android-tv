@@ -12,6 +12,7 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 import 'package:hypetv/widgets/tv_button.dart';
+import 'package:hypetv/widgets/tv_action.dart';
 import 'package:hypetv/services/watch_history_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -348,10 +349,12 @@ class _NavLabelState extends State<_NavLabel> {
 
   @override
   Widget build(BuildContext context) {
+    final action = widget.onPressed ?? () {};
     return Focus(
+      onKeyEvent: (_, event) => activateOnTvKey(event, action),
       onFocusChange: (value) => setState(() => _focused = value),
       child: TextButton(
-        onPressed: widget.onPressed ?? () {},
+        onPressed: action,
         style: TextButton.styleFrom(
           foregroundColor: _focused || widget.selected
               ? Colors.white

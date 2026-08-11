@@ -9,6 +9,7 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/services/favourites_service.dart';
 import 'package:hypetv/services/watch_history_service.dart';
 import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PlayerArguments {
   const PlayerArguments({required this.source, required this.item});
@@ -30,6 +31,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Object? _error;
   var _controlsVisible = true;
   var _exiting = false;
+  DateTime _lastUiRefresh = DateTime.fromMillisecondsSinceEpoch(0);
 
   bool get _isLive => widget.arguments.item.type == 'live';
 
@@ -56,6 +58,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _refresh() {
+    final now = DateTime.now();
+    final important = _controller.value.isBuffering || _controller.value.hasError;
+    if (!important && now.difference(_lastUiRefresh) < const Duration(milliseconds: 250)) return;
+    _lastUiRefresh = now;
     if (mounted) setState(() {});
   }
 
@@ -99,6 +105,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
     await _controller.seekTo(target);
     _scheduleControls();
+  }
+
+  Future<void> _openSystemPlayer() async {
+    _scheduleControls();
+    try {
+      await _controller.pause();
+      final opened = await launchUrl(
+        Uri.parse(widget.arguments.source.url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No compatible system player was found.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This stream cannot be handed to the system player.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showTracksHelp() async {
+    _scheduleControls();
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Audio & subtitles'),
+        content: const Text(
+          'The current HypeTV player does not expose embedded audio/subtitle track lists on every Android TV device. '
+          'Open the system player for native track controls when the stream provides them.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            autofocus: true,
+            onPressed: () {
+              Navigator.pop(context);
+              unawaited(_openSystemPlayer());
+            },
+            child: const Text('Open system player'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _stopAndPop() async {
@@ -293,6 +346,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       size: 30,
                                     ),
                                   ),
+                                  if (!_isLive)
+                                    IconButton(
+                                      tooltip: 'Audio & subtitles',
+                                      onPressed: _showTracksHelp,
+                                      icon: const Icon(Icons.subtitles_rounded, size: 30),
+                                    ),
                                   if (_isLive)
                                     const Chip(
                                       avatar: Icon(

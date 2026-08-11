@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
+import 'package:hypetv/widgets/tv_action.dart';
 
 class MediaCard extends StatefulWidget {
   const MediaCard({
@@ -49,6 +50,7 @@ class _MediaCardState extends State<MediaCard> {
         curve: Curves.easeOut,
         child: Focus(
           autofocus: widget.autofocus,
+          onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
           onFocusChange: _handleFocus,
           child: InkWell(
             onTap: widget.onPressed,

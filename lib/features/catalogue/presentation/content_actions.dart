@@ -5,6 +5,8 @@ import 'package:hypetv/features/activation/presentation/activation_controller.da
 import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
+import 'package:hypetv/services/playback_preferences_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 CatalogueType? catalogueTypeOf(ContentItem item) => switch (item.type) {
   'live' => CatalogueType.live,
@@ -45,10 +47,18 @@ Future<void> playContent(
         .resolvePlayback(item);
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop();
-    context.push(
-      '/player',
-      extra: PlayerArguments(source: source, item: item),
-    );
+    final mode = ref.read(playbackModeProvider).value ?? PlaybackMode.auto;
+    if (mode == PlaybackMode.system) {
+      final opened = await launchUrl(
+        Uri.parse(source.url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && context.mounted) {
+        context.push('/player', extra: PlayerArguments(source: source, item: item));
+      }
+      return;
+    }
+    context.push('/player', extra: PlayerArguments(source: source, item: item));
   } on CatalogueException catch (error) {
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop();

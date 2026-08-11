@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/activation/presentation/activation_controller.dart';
 import 'package:hypetv/services/secure_storage_service.dart';
+import 'package:hypetv/services/playback_preferences_service.dart';
 import 'package:hypetv/services/update_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
+import 'package:hypetv/widgets/tv_action.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final activationCodeProvider = FutureProvider<String?>(
@@ -139,6 +141,15 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 34),
+                        const _SectionTitle('PLAYBACK'),
+                        _PlaybackModeTile(),
+                        const SizedBox(height: 16),
+                        const _SettingsTile(
+                          icon: Icons.subtitles_rounded,
+                          title: 'Audio & subtitles',
+                          subtitle: 'Embedded track selection is available when the selected playback engine exposes those tracks. System player is the compatibility fallback for titles that need native track controls.',
+                        ),
+                        const SizedBox(height: 34),
                         if (kDebugMode) ...[
                           const _SectionTitle('DEVELOPER'),
                           _SettingsTile(
@@ -230,6 +241,7 @@ class _SettingsTileState extends State<_SettingsTile> {
     final interactive = widget.onPressed != null;
     return Focus(
       canRequestFocus: interactive,
+      onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
       onFocusChange: (value) {
         setState(() => _focused = value);
         if (value) {
@@ -296,6 +308,50 @@ class _SettingsTileState extends State<_SettingsTile> {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+class _PlaybackModeTile extends ConsumerWidget {
+  const _PlaybackModeTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(playbackModeProvider).value ?? PlaybackMode.auto;
+    return _SettingsTile(
+      icon: Icons.play_circle_outline_rounded,
+      title: 'Playback engine',
+      subtitle: mode.label,
+      actionLabel: 'Change',
+      onPressed: () async {
+        final selected = await showDialog<PlaybackMode>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Playback engine'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final candidate in PlaybackMode.values)
+                  ListTile(
+                    autofocus: candidate == mode,
+                    leading: Icon(candidate == mode ? Icons.radio_button_checked : Icons.radio_button_off),
+                    title: Text(candidate.label),
+                    subtitle: Text(switch (candidate) {
+                      PlaybackMode.auto => 'Use the HypeTV player with the safest defaults.',
+                      PlaybackMode.inApp => 'Always play inside HypeTV.',
+                      PlaybackMode.system => 'Open the device player. Useful for codec, audio-track or subtitle compatibility; protected streams that require private headers may fall back to HypeTV.',
+                    }),
+                    onTap: () => Navigator.pop(context, candidate),
+                  ),
+              ],
+            ),
+          ),
+        );
+        if (selected != null) {
+          await ref.read(playbackModeProvider.notifier).setMode(selected);
+        }
+      },
     );
   }
 }

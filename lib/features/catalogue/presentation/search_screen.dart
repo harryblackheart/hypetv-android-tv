@@ -9,6 +9,7 @@ import 'package:hypetv/features/catalogue/presentation/content_actions.dart';
 import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
+import 'package:hypetv/widgets/tv_action.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key, this.initialType});
@@ -146,6 +147,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ],
               ),
             ),
+            if (MediaQuery.sizeOf(context).width >= 700)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(132, 0, 54, 16),
+                child: _TvSearchKeyboard(
+                  onKey: (value) {
+                    _controller.text += value;
+                    _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+                  },
+                  onBackspace: () {
+                    if (_controller.text.isEmpty) return;
+                    _controller.text = _controller.text.substring(0, _controller.text.length - 1);
+                    _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+                  },
+                  onSearch: _loading ? null : _search,
+                ),
+              ),
             Expanded(
               child: switch ((_loading, _error, _results.isEmpty, _searched)) {
                 (true, _, _, _) => const CatalogueLoadingView(
@@ -196,6 +213,93 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class _TvSearchKeyboard extends StatelessWidget {
+  const _TvSearchKeyboard({
+    required this.onKey,
+    required this.onBackspace,
+    required this.onSearch,
+  });
+
+  final ValueChanged<String> onKey;
+  final VoidCallback onBackspace;
+  final VoidCallback? onSearch;
+
+  static const _keys = <String>[
+    'A','B','C','D','E','F','G','H','I','J',
+    'K','L','M','N','O','P','Q','R','S','T',
+    'U','V','W','X','Y','Z','0','1','2','3',
+    '4','5','6','7','8','9',' ','⌫','SEARCH',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return FocusTraversalGroup(
+      policy: ReadingOrderTraversalPolicy(),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final key in _keys)
+            _TvKey(
+              label: key == ' ' ? 'SPACE' : key,
+              onPressed: key == '⌫'
+                  ? onBackspace
+                  : key == 'SEARCH'
+                      ? onSearch
+                      : () => onKey(key),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TvKey extends StatefulWidget {
+  const _TvKey({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  State<_TvKey> createState() => _TvKeyState();
+}
+
+class _TvKeyState extends State<_TvKey> {
+  var _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      canRequestFocus: widget.onPressed != null,
+      onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
+      onFocusChange: (value) => setState(() => _focused = value),
+      child: InkWell(
+        onTap: widget.onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          width: widget.label == 'SEARCH' ? 112 : widget.label == 'SPACE' ? 90 : 52,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _focused ? Colors.white : AppColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _focused ? Colors.white : Colors.white24, width: 2),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              color: _focused ? Colors.black : Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: widget.label.length > 2 ? 12 : 16,
+            ),
+          ),
         ),
       ),
     );

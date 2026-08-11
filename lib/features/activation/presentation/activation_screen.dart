@@ -6,6 +6,7 @@ import 'package:hypetv/core/constants/app_constants.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/activation/presentation/activation_controller.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
+import 'package:hypetv/widgets/tv_action.dart';
 
 class ActivationScreen extends ConsumerStatefulWidget {
   const ActivationScreen({super.key});
@@ -364,6 +365,8 @@ class _KeypadButtonState extends State<_KeypadButton> {
   @override
   Widget build(BuildContext context) {
     return Focus(
+      autofocus: widget.label == '1',
+      onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
       onFocusChange: (value) => setState(() => _focused = value),
       child: FilledButton(
         onPressed: widget.onPressed,

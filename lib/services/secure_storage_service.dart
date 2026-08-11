@@ -14,6 +14,7 @@ class SecureStorageService {
   static const _deviceIdKey = 'device_id';
   static const _watchHistoryKey = 'watch_history';
   static const _favouritesKey = 'favourites';
+  static const _playbackModeKey = 'playback_mode';
 
   final FlutterSecureStorage _storage;
 
@@ -34,6 +35,11 @@ class SecureStorageService {
 
   Future<void> saveFavourites(String value) =>
       _storage.write(key: _favouritesKey, value: value);
+
+  Future<String?> get playbackMode => _storage.read(key: _playbackModeKey);
+
+  Future<void> savePlaybackMode(String value) =>
+      _storage.write(key: _playbackModeKey, value: value);
 
   Future<String> getOrCreateDeviceId() async {
     final existing = await _storage.read(key: _deviceIdKey);
