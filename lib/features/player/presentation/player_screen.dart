@@ -55,8 +55,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       await _controller.play();
       _scheduleControls();
     } catch (error) {
-      if (mounted) setState(() {
-        => _error = error);
+      if (mounted) {
+        setState(() => _error = error);
       }
     }
   }
@@ -64,7 +64,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _refresh() {
     final now = DateTime.now();
     final important = _controller.value.isBuffering || _controller.value.hasError;
-    if (!important && now.difference(_lastUiRefresh) < const Duration(milliseconds: 250)) {
+    if (!important &&
+        now.difference(_lastUiRefresh) < const Duration(milliseconds: 250)) {
       return;
     }
     _lastUiRefresh = now;
