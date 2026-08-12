@@ -49,25 +49,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _initialize() async {
     try {
       await _controller.initialize();
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       await _controller.play();
       _scheduleControls();
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted) setState(() {
+        => _error = error);
+      }
     }
   }
 
   void _refresh() {
     final now = DateTime.now();
     final important = _controller.value.isBuffering || _controller.value.hasError;
-    if (!important && now.difference(_lastUiRefresh) < const Duration(milliseconds: 250)) return;
+    if (!important && now.difference(_lastUiRefresh) < const Duration(milliseconds: 250)) {
+      return;
+    }
     _lastUiRefresh = now;
-    if (mounted) setState(() {});
+    if (mounted) setState(() {
+      {});
+    }
   }
 
   void _scheduleControls() {
     _controlsTimer?.cancel();
-    if (mounted) setState(() => _controlsVisible = true);
+    if (mounted) setState(() {
+      => _controlsVisible = true);
+    }
     _controlsTimer = Timer(const Duration(seconds: 5), () {
       if (mounted && _controller.value.isPlaying) {
         setState(() => _controlsVisible = false);
@@ -86,7 +96,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _seek(Duration offset) async {
-    if (_isLive || !_controller.value.isInitialized) return;
+    if (_isLive || !_controller.value.isInitialized) {
+      return;
+    }
     final target = _controller.value.position + offset;
     final safe = target < Duration.zero
         ? Duration.zero
@@ -98,7 +110,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _seekToFraction(double value) async {
-    if (_isLive || !_controller.value.isInitialized) return;
+    if (_isLive || !_controller.value.isInitialized) {
+      return;
+    }
     final duration = _controller.value.duration;
     final target = Duration(
       milliseconds: (duration.inMilliseconds * value.clamp(0.0, 1.0)).round(),
@@ -155,7 +169,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _stopAndPop() async {
-    if (_exiting) return;
+    if (_exiting) {
+      return;
+    }
     _exiting = true;
     _controlsTimer?.cancel();
     try {
@@ -174,7 +190,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } catch (_) {
       // Dispose below remains the final stop guarantee.
     }
-    if (mounted) context.pop();
+    if (mounted) {
+      context.pop();
+    }
   }
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
@@ -249,7 +267,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) unawaited(_stopAndPop());
+        if (!didPop) {
+          unawaited(_stopAndPop());
+        }
       },
       child: Scaffold(
         backgroundColor: Colors.black,
