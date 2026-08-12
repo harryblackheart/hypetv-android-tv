@@ -68,15 +68,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
     _lastUiRefresh = now;
-    if (mounted) setState(() {
-      {});
+    if (mounted) {
+      setState(() {});
     }
   }
 
   void _scheduleControls() {
     _controlsTimer?.cancel();
-    if (mounted) setState(() {
-      => _controlsVisible = true);
+    if (mounted) {
+      setState(() => _controlsVisible = true);
     }
     _controlsTimer = Timer(const Duration(seconds: 5), () {
       if (mounted && _controller.value.isPlaying) {
