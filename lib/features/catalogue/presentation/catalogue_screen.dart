@@ -75,6 +75,13 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
           categoryId: effectiveCategory,
           limit: 60,
         );
+        if (widget.type == CatalogueType.live && items.isEmpty) {
+          final home = await service.fetchHome();
+          items = home
+              .expand((shelf) => shelf.items)
+              .where((item) => item.type == 'live')
+              .toList(growable: false);
+        }
       }
       if (!mounted) return;
       setState(() {

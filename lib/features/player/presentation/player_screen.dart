@@ -8,7 +8,8 @@ import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/services/favourites_service.dart';
 import 'package:hypetv/services/watch_history_service.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PlayerArguments {
@@ -26,51 +27,94 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
-  late final VideoPlayerController _controller;
+  late final Player _player;
+  late final VideoController _videoController;
+  final _surfaceFocus = FocusNode(debugLabel: 'player-surface');
+  final _backFocus = FocusNode(debugLabel: 'player-back');
+  final _favouriteFocus = FocusNode(debugLabel: 'player-favourite');
+  final _tracksFocus = FocusNode(debugLabel: 'player-tracks');
+  final _playFocus = FocusNode(debugLabel: 'player-play');
+  final _rewindFocus = FocusNode(debugLabel: 'player-rewind');
+  final _forwardFocus = FocusNode(debugLabel: 'player-forward');
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
   Timer? _controlsTimer;
   Object? _error;
   var _controlsVisible = true;
   var _exiting = false;
-  DateTime _lastUiRefresh = DateTime.fromMillisecondsSinceEpoch(0);
+  var _playing = false;
+  var _buffering = true;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  Tracks _tracks = const Tracks();
+  Track _track = const Track();
 
   bool get _isLive => widget.arguments.item.type == 'live';
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(
-      Uri.parse(widget.arguments.source.url),
-      httpHeaders: widget.arguments.source.headers,
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
-    )..addListener(_refresh);
+    _player = Player();
+    _videoController = VideoController(
+      _player,
+      configuration: const VideoControllerConfiguration(
+        hwdec: 'auto-safe',
+        enableHardwareAcceleration: true,
+      ),
+    );
+    _subscriptions.addAll([
+      _player.stream.playing.listen((value) {
+        if (mounted) {
+          setState(() => _playing = value);
+        }
+      }),
+      _player.stream.buffering.listen((value) {
+        if (mounted) {
+          setState(() => _buffering = value);
+        }
+      }),
+      _player.stream.position.listen((value) {
+        if (mounted) {
+          setState(() => _position = value);
+        }
+      }),
+      _player.stream.duration.listen((value) {
+        if (mounted) {
+          setState(() => _duration = value);
+        }
+      }),
+      _player.stream.tracks.listen((value) {
+        if (mounted) {
+          setState(() => _tracks = value);
+        }
+      }),
+      _player.stream.track.listen((value) {
+        if (mounted) {
+          setState(() => _track = value);
+        }
+      }),
+      _player.stream.error.listen((value) {
+        if (value.isNotEmpty && mounted) {
+          setState(() => _error = value);
+        }
+      }),
+    ]);
     unawaited(_initialize());
   }
 
   Future<void> _initialize() async {
     try {
-      await _controller.initialize();
-      if (!mounted) {
-        return;
-      }
-      await _controller.play();
+      await _player.open(
+        Media(
+          widget.arguments.source.url,
+          httpHeaders: widget.arguments.source.headers,
+        ),
+        play: true,
+      );
       _scheduleControls();
     } catch (error) {
       if (mounted) {
         setState(() => _error = error);
       }
-    }
-  }
-
-  void _refresh() {
-    final now = DateTime.now();
-    final important = _controller.value.isBuffering || _controller.value.hasError;
-    if (!important &&
-        now.difference(_lastUiRefresh) < const Duration(milliseconds: 250)) {
-      return;
-    }
-    _lastUiRefresh = now;
-    if (mounted) {
-      setState(() {});
     }
   }
 
@@ -80,89 +124,146 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       setState(() => _controlsVisible = true);
     }
     _controlsTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted && _controller.value.isPlaying) {
+      if (mounted && _playing && !_hasControlFocus) {
         setState(() => _controlsVisible = false);
       }
     });
   }
 
+  bool get _hasControlFocus => [
+        _backFocus,
+        _favouriteFocus,
+        _tracksFocus,
+        _playFocus,
+        _rewindFocus,
+        _forwardFocus,
+      ].any((node) => node.hasFocus);
+
   Future<void> _togglePlayback() async {
     _scheduleControls();
-    if (_controller.value.isPlaying) {
-      await _controller.pause();
-    } else {
-      await _controller.play();
-      _scheduleControls();
-    }
+    await _player.playOrPause();
   }
 
   Future<void> _seek(Duration offset) async {
-    if (_isLive || !_controller.value.isInitialized) {
+    if (_isLive || _duration == Duration.zero) {
       return;
     }
-    final target = _controller.value.position + offset;
-    final safe = target < Duration.zero
-        ? Duration.zero
-        : target > _controller.value.duration
-        ? _controller.value.duration
-        : target;
-    await _controller.seekTo(safe);
+    var target = _position + offset;
+    if (target < Duration.zero) {
+      target = Duration.zero;
+    }
+    if (target > _duration) {
+      target = _duration;
+    }
+    await _player.seek(target);
     _scheduleControls();
   }
 
   Future<void> _seekToFraction(double value) async {
-    if (_isLive || !_controller.value.isInitialized) {
+    if (_isLive || _duration == Duration.zero) {
       return;
     }
-    final duration = _controller.value.duration;
-    final target = Duration(
-      milliseconds: (duration.inMilliseconds * value.clamp(0.0, 1.0)).round(),
+    await _player.seek(
+      Duration(milliseconds: (_duration.inMilliseconds * value).round()),
     );
-    await _controller.seekTo(target);
     _scheduleControls();
   }
 
   Future<void> _openSystemPlayer() async {
-    _scheduleControls();
-    try {
-      await _controller.pause();
-      final opened = await launchUrl(
-        Uri.parse(widget.arguments.source.url),
-        mode: LaunchMode.externalApplication,
+    await _player.pause();
+    final opened = await launchUrl(
+      Uri.parse(widget.arguments.source.url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No compatible system player was found.')),
       );
-      if (!opened && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No compatible system player was found.')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This stream cannot be handed to the system player.')),
-        );
-      }
     }
   }
 
-  Future<void> _showTracksHelp() async {
+  String _trackLabel(dynamic track, String fallback) {
+    final title = track.title?.toString().trim();
+    final language = track.language?.toString().trim();
+    final codec = track.codec?.toString().trim();
+    return [
+      if (title != null && title.isNotEmpty) title,
+      if (language != null && language.isNotEmpty) language.toUpperCase(),
+      if (codec != null && codec.isNotEmpty) codec.toUpperCase(),
+    ].join(' · ').trim().isEmpty
+        ? fallback
+        : [
+            if (title != null && title.isNotEmpty) title,
+            if (language != null && language.isNotEmpty) language.toUpperCase(),
+            if (codec != null && codec.isNotEmpty) codec.toUpperCase(),
+          ].join(' · ');
+  }
+
+  Future<void> _showTracks() async {
     _scheduleControls();
+    final audios = _tracks.audio.where((track) => track.id != 'no').toList();
+    final subtitles = _tracks.subtitle.toList();
     await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Audio & subtitles'),
-        content: const Text(
-          'The current HypeTV player does not expose embedded audio/subtitle track lists on every Android TV device. '
-          'Open the system player for native track controls when the stream provides them.',
+        content: SizedBox(
+          width: 620,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('AUDIO', style: TextStyle(color: AppColors.muted)),
+                const SizedBox(height: 8),
+                for (var index = 0; index < audios.length; index++)
+                  TextButton(
+                    autofocus: index == 0,
+                    onPressed: () async {
+                      await _player.setAudioTrack(audios[index]);
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext);
+                      }
+                    },
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${_track.audio.id == audios[index].id ? '✓ ' : ''}${_trackLabel(audios[index], 'Audio ${index + 1}')}',
+                      ),
+                    ),
+                  ),
+                const Divider(),
+                const Text('SUBTITLES', style: TextStyle(color: AppColors.muted)),
+                const SizedBox(height: 8),
+                for (var index = 0; index < subtitles.length; index++)
+                  TextButton(
+                    onPressed: () async {
+                      await _player.setSubtitleTrack(subtitles[index]);
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext);
+                      }
+                    },
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${_track.subtitle.id == subtitles[index].id ? '✓ ' : ''}${subtitles[index].id == 'no' ? 'Off' : _trackLabel(subtitles[index], 'Subtitle ${index + 1}')}',
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            autofocus: true,
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+          TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               unawaited(_openSystemPlayer());
             },
-            child: const Text('Open system player'),
+            child: const Text('System player'),
           ),
         ],
       ),
@@ -176,37 +277,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _exiting = true;
     _controlsTimer?.cancel();
     try {
-      if (_controller.value.isInitialized) {
-        await _controller.pause();
-        if (!_isLive) {
-          await ref.read(watchHistoryServiceProvider).saveProgress(
-            widget.arguments.item,
-            _controller.value.position,
-            _controller.value.duration,
-          );
-          ref.invalidate(watchHistoryProvider);
-        }
-        await _controller.setVolume(0);
+      await _player.pause();
+      if (!_isLive && _duration > Duration.zero) {
+        await ref.read(watchHistoryServiceProvider).saveProgress(
+              widget.arguments.item,
+              _position,
+              _duration,
+            );
+        ref.invalidate(watchHistoryProvider);
       }
-    } catch (_) {
-      // Dispose below remains the final stop guarantee.
-    }
+      await _player.setVolume(0);
+    } catch (_) {}
     if (mounted) {
       context.pop();
     }
   }
 
-  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+  KeyEventResult _onSurfaceKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
-    if (event is KeyDownEvent &&
-        (key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.enter ||
-            key == LogicalKeyboardKey.space ||
-            key == LogicalKeyboardKey.mediaPlayPause)) {
-      unawaited(_togglePlayback());
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _scheduleControls();
+      _favouriteFocus.requestFocus();
       return KeyEventResult.handled;
     }
     if (!_isLive && key == LogicalKeyboardKey.arrowLeft) {
@@ -218,8 +312,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return KeyEventResult.handled;
     }
     if (event is KeyDownEvent &&
-        (key == LogicalKeyboardKey.escape ||
-            key == LogicalKeyboardKey.goBack)) {
+        (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.space ||
+            key == LogicalKeyboardKey.mediaPlayPause)) {
+      unawaited(_togglePlayback());
+      return KeyEventResult.handled;
+    }
+    if (event is KeyDownEvent &&
+        (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack)) {
       unawaited(_stopAndPop());
       return KeyEventResult.handled;
     }
@@ -227,24 +328,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return KeyEventResult.ignored;
   }
 
+  void _onControlFocus(bool focused) {
+    if (focused) {
+      _controlsTimer?.cancel();
+      if (!_controlsVisible) {
+        setState(() => _controlsVisible = true);
+      }
+    } else {
+      _scheduleControls();
+    }
+  }
+
   @override
   void dispose() {
     _controlsTimer?.cancel();
-    if (!_exiting && _controller.value.isInitialized) {
+    for (final subscription in _subscriptions) {
+      unawaited(subscription.cancel());
+    }
+    if (!_exiting && !_isLive && _duration > Duration.zero) {
       unawaited(
         ref
             .read(watchHistoryServiceProvider)
-            .saveProgress(
-              widget.arguments.item,
-              _controller.value.position,
-              _controller.value.duration,
-            )
+            .saveProgress(widget.arguments.item, _position, _duration)
             .then((_) => ref.invalidate(watchHistoryProvider)),
       );
     }
-    _controller
-      ..removeListener(_refresh)
-      ..dispose();
+    _player.dispose();
+    for (final node in [
+      _surfaceFocus,
+      _backFocus,
+      _favouriteFocus,
+      _tracksFocus,
+      _playFocus,
+      _rewindFocus,
+      _forwardFocus,
+    ]) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -256,11 +376,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       (candidate) =>
           candidate.type == item.type && candidate.upstreamId == item.upstreamId,
     );
-    final progress = !_isLive &&
-            _controller.value.isInitialized &&
-            _controller.value.duration.inMilliseconds > 0
-        ? (_controller.value.position.inMilliseconds /
-                _controller.value.duration.inMilliseconds)
+    final progress = !_isLive && _duration.inMilliseconds > 0
+        ? (_position.inMilliseconds / _duration.inMilliseconds)
             .clamp(0.0, 1.0)
             .toDouble()
         : 0.0;
@@ -274,187 +391,258 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       },
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: Focus(
-          autofocus: true,
-          onKeyEvent: _onKeyEvent,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _togglePlayback,
-            onPanDown: (_) => _scheduleControls(),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (_controller.value.isInitialized)
-                  Center(
-                    child: AspectRatio(
-                      aspectRatio: _controller.value.aspectRatio == 0
-                          ? 16 / 9
-                          : _controller.value.aspectRatio,
-                      child: VideoPlayer(_controller),
-                    ),
-                  )
-                else if (_error == null)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  const Center(
-                    child: Text(
-                      'This stream could not be played.\nPress Back to choose something else.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 20),
-                    ),
+        body: FocusTraversalGroup(
+          policy: ReadingOrderTraversalPolicy(),
+          child: Focus(
+            focusNode: _surfaceFocus,
+            autofocus: true,
+            onKeyEvent: _onSurfaceKey,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _togglePlayback,
+              onPanDown: (_) => _scheduleControls(),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Video(
+                    controller: _videoController,
+                    controls: NoVideoControls,
+                    fit: BoxFit.contain,
                   ),
-                if (_controller.value.isBuffering)
-                  const Center(child: CircularProgressIndicator()),
-                AnimatedOpacity(
-                  opacity: _controlsVisible ? 1 : 0,
-                  duration: const Duration(milliseconds: 220),
-                  child: IgnorePointer(
-                    ignoring: !_controlsVisible,
-                    child: DecoratedBox(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: [0, .3, .7, 1],
-                          colors: [
-                            Colors.black87,
-                            Colors.transparent,
-                            Colors.transparent,
-                            Colors.black87,
-                          ],
-                        ),
-                      ),
-                      child: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 48,
-                            vertical: 28,
+                  if (_buffering && _error == null)
+                    const Center(child: CircularProgressIndicator()),
+                  if (_error != null)
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'This stream could not be played.',
+                            style: TextStyle(fontSize: 20),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  IconButton(
-                                    onPressed: _stopAndPop,
-                                    icon: const Icon(
-                                      Icons.arrow_back_rounded,
-                                      size: 32,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Text(
-                                      item.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.headlineMedium,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: isFavourite
-                                        ? 'Remove favourite'
-                                        : 'Add favourite',
-                                    onPressed: () => ref
-                                        .read(favouritesProvider.notifier)
-                                        .toggle(item),
-                                    icon: Icon(
-                                      isFavourite
-                                          ? Icons.favorite_rounded
-                                          : Icons.favorite_border_rounded,
-                                      size: 30,
-                                    ),
-                                  ),
-                                  if (!_isLive)
-                                    IconButton(
-                                      tooltip: 'Audio & subtitles',
-                                      onPressed: _showTracksHelp,
-                                      icon: const Icon(Icons.subtitles_rounded, size: 30),
-                                    ),
-                                  if (_isLive)
-                                    const Chip(
-                                      avatar: Icon(
-                                        Icons.circle,
-                                        color: AppColors.red,
-                                        size: 13,
-                                      ),
-                                      label: Text('LIVE'),
-                                    ),
-                                ],
-                              ),
-                              const Spacer(),
-                              Row(
-                                children: [
-                                  IconButton.filled(
-                                    onPressed: _togglePlayback,
-                                    icon: Icon(
-                                      _controller.value.isPlaying
-                                          ? Icons.pause_rounded
-                                          : Icons.play_arrow_rounded,
-                                      size: 36,
-                                    ),
-                                  ),
-                                  if (!_isLive) ...[
-                                    const SizedBox(width: 12),
-                                    IconButton(
-                                      tooltip: 'Back 10 seconds',
-                                      onPressed: () =>
-                                          _seek(const Duration(seconds: -10)),
-                                      icon: const Icon(
-                                        Icons.replay_10_rounded,
-                                        size: 32,
-                                      ),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Forward 10 seconds',
-                                      onPressed: () =>
-                                          _seek(const Duration(seconds: 10)),
-                                      icon: const Icon(
-                                        Icons.forward_10_rounded,
-                                        size: 32,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Text(
-                                      '${_formatDuration(_controller.value.position)} / ${_formatDuration(_controller.value.duration)}',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    const Text(
-                                      'D-pad ←/→ jumps 30s · hold to move faster',
-                                      style: TextStyle(
-                                        color: AppColors.muted,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              if (!_isLive &&
-                                  _controller.value.isInitialized) ...[
-                                const SizedBox(height: 8),
-                                Slider(
-                                  value: progress,
-                                  onChanged: _seekToFraction,
-                                  activeColor: AppColors.red,
-                                  inactiveColor: Colors.white24,
-                                ),
-                              ],
+                          const SizedBox(height: 16),
+                          FilledButton(
+                            autofocus: true,
+                            onPressed: _openSystemPlayer,
+                            child: const Text('Try system player'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  AnimatedOpacity(
+                    opacity: _controlsVisible ? 1 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: IgnorePointer(
+                      ignoring: !_controlsVisible,
+                      child: DecoratedBox(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: [0, .3, .7, 1],
+                            colors: [
+                              Colors.black87,
+                              Colors.transparent,
+                              Colors.transparent,
+                              Colors.black87,
                             ],
                           ),
                         ),
+                        child: SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 48,
+                              vertical: 28,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    _PlayerIconButton(
+                                      focusNode: _backFocus,
+                                      tooltip: 'Back',
+                                      icon: Icons.arrow_back_rounded,
+                                      onPressed: _stopAndPop,
+                                      onFocusChange: _onControlFocus,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        item.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineMedium,
+                                      ),
+                                    ),
+                                    _PlayerIconButton(
+                                      focusNode: _favouriteFocus,
+                                      tooltip: isFavourite
+                                          ? 'Remove favourite'
+                                          : 'Add favourite',
+                                      icon: isFavourite
+                                          ? Icons.favorite_rounded
+                                          : Icons.favorite_border_rounded,
+                                      onPressed: () => ref
+                                          .read(favouritesProvider.notifier)
+                                          .toggle(item),
+                                      onFocusChange: _onControlFocus,
+                                    ),
+                                    if (!_isLive)
+                                      _PlayerIconButton(
+                                        focusNode: _tracksFocus,
+                                        tooltip: 'Audio & subtitles',
+                                        icon: Icons.subtitles_rounded,
+                                        onPressed: _showTracks,
+                                        onFocusChange: _onControlFocus,
+                                      ),
+                                    if (_isLive)
+                                      const Chip(
+                                        avatar: Icon(
+                                          Icons.circle,
+                                          color: AppColors.red,
+                                          size: 13,
+                                        ),
+                                        label: Text('LIVE'),
+                                      ),
+                                  ],
+                                ),
+                                const Spacer(),
+                                Row(
+                                  children: [
+                                    _PlayerIconButton(
+                                      focusNode: _playFocus,
+                                      tooltip: _playing ? 'Pause' : 'Play',
+                                      icon: _playing
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded,
+                                      filled: true,
+                                      onPressed: _togglePlayback,
+                                      onFocusChange: _onControlFocus,
+                                    ),
+                                    if (!_isLive) ...[
+                                      const SizedBox(width: 12),
+                                      _PlayerIconButton(
+                                        focusNode: _rewindFocus,
+                                        tooltip: 'Back 10 seconds',
+                                        icon: Icons.replay_10_rounded,
+                                        onPressed: () => _seek(
+                                          const Duration(seconds: -10),
+                                        ),
+                                        onFocusChange: _onControlFocus,
+                                      ),
+                                      _PlayerIconButton(
+                                        focusNode: _forwardFocus,
+                                        tooltip: 'Forward 10 seconds',
+                                        icon: Icons.forward_10_rounded,
+                                        onPressed: () => _seek(
+                                          const Duration(seconds: 10),
+                                        ),
+                                        onFocusChange: _onControlFocus,
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Text(
+                                        '${_formatDuration(_position)} / ${_formatDuration(_duration)}',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                if (!_isLive && _duration > Duration.zero) ...[
+                                  const SizedBox(height: 8),
+                                  Slider(
+                                    value: progress,
+                                    onChanged: _seekToFraction,
+                                    activeColor: AppColors.red,
+                                    inactiveColor: Colors.white24,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayerIconButton extends StatefulWidget {
+  const _PlayerIconButton({
+    required this.focusNode,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    required this.onFocusChange,
+    this.filled = false,
+  });
+
+  final FocusNode focusNode;
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final ValueChanged<bool> onFocusChange;
+  final bool filled;
+
+  @override
+  State<_PlayerIconButton> createState() => _PlayerIconButtonState();
+}
+
+class _PlayerIconButtonState extends State<_PlayerIconButton> {
+  var _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: widget.focusNode,
+      onFocusChange: (value) {
+        setState(() => _focused = value);
+        widget.onFocusChange(value);
+      },
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.space)) {
+          widget.onPressed();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedScale(
+        scale: _focused ? 1.12 : 1,
+        duration: const Duration(milliseconds: 120),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: _focused ? Colors.white : Colors.transparent,
+              width: 3,
+            ),
+          ),
+          child: widget.filled
+              ? IconButton.filled(
+                  tooltip: widget.tooltip,
+                  onPressed: widget.onPressed,
+                  icon: Icon(widget.icon, size: 36),
+                )
+              : IconButton(
+                  tooltip: widget.tooltip,
+                  onPressed: widget.onPressed,
+                  icon: Icon(widget.icon, size: 30),
+                ),
         ),
       ),
     );
