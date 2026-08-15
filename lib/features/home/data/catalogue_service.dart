@@ -107,6 +107,8 @@ class CatalogueException implements Exception {
     'UNAUTHENTICATED' =>
       'Your activation has expired. Please activate HypeTV again.',
     'DEVICE_TOKEN_REJECTED' => 'This device needs to be activated again.',
+    'CATCHUP_UNAVAILABLE' =>
+      'Catch-up is not available for this programme on the HypeTV server.',
     _ => 'HypeTV could not load the catalogue. Please try again.',
   };
 
@@ -235,14 +237,23 @@ class CatalogueService {
     return _parseItems(body);
   }
 
-  Future<List<EpgEntry>> fetchEpg(ContentItem item, {int limit = 12}) async {
+  Future<List<EpgEntry>> fetchEpg(
+    ContentItem item, {
+    int limit = 12,
+    bool includePast = false,
+    int days = 7,
+  }) async {
     final id = item.upstreamId;
     if (id == null || id.isEmpty) {
       return const [];
     }
     final body = await _get(
       '/api/catalog/epg/${_providerId(id)}',
-      query: {'limit': '$limit'},
+      query: {
+        'limit': '$limit',
+        if (includePast) 'include_past': '1',
+        if (includePast) 'days': '$days',
+      },
     );
     final values = _listAt(body, const [
       'epg_listings',
@@ -258,6 +269,40 @@ class CatalogueService {
         .map(EpgEntry.fromJson)
         .where((entry) => entry.title.isNotEmpty)
         .toList(growable: false);
+  }
+
+
+  Future<PlaybackSource> resolveCatchup(
+    ContentItem item,
+    EpgEntry entry,
+  ) async {
+    final id = item.upstreamId;
+    if (id == null || id.isEmpty || !item.catchupAvailable) {
+      throw const CatalogueException('CATCHUP_UNAVAILABLE');
+    }
+    if (entry.start == null || entry.end == null) {
+      throw const CatalogueException('CATCHUP_UNAVAILABLE');
+    }
+    final body = await _post('/api/playback/catchup', {
+      'content_type': 'live',
+      'content_id': id,
+      'start_timestamp': entry.start!.toUtc().millisecondsSinceEpoch ~/ 1000,
+      'end_timestamp': entry.end!.toUtc().millisecondsSinceEpoch ~/ 1000,
+      'container_extension': item.containerExtension?.isNotEmpty == true
+          ? item.containerExtension
+          : 'ts',
+    });
+    final data = _mapAt(body, const ['data', 'playback']) ?? body;
+    final url = (data['url'] ?? data['playback_url'] ?? data['stream_url'])
+        ?.toString();
+    if (url == null || url.isEmpty) {
+      throw const CatalogueException('CATCHUP_UNAVAILABLE');
+    }
+    final rawHeaders = data['headers'];
+    final headers = rawHeaders is Map
+        ? rawHeaders.map((key, value) => MapEntry('$key', '$value'))
+        : const <String, String>{};
+    return PlaybackSource(url: url, headers: headers);
   }
 
   Future<PlaybackSource> resolvePlayback(ContentItem item) async {
@@ -471,6 +516,13 @@ class EpgEntry {
   final String description;
   final DateTime? start;
   final DateTime? end;
+
+  bool get isPast => end != null && end!.isBefore(DateTime.now());
+  bool get isCurrent =>
+      start != null &&
+      end != null &&
+      !DateTime.now().isBefore(start!) &&
+      DateTime.now().isBefore(end!);
 
   factory EpgEntry.fromJson(Map<String, dynamic> json) {
     return EpgEntry(

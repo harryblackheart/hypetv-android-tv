@@ -36,6 +36,8 @@ class ContentItem {
     this.year,
     this.categoryId,
     this.isAdult = false,
+    this.catchupAvailable = false,
+    this.catchupDays = 0,
     this.episodes = const [],
   });
 
@@ -55,6 +57,8 @@ class ContentItem {
   final int? year;
   final String? categoryId;
   final bool isAdult;
+  final bool catchupAvailable;
+  final int catchupDays;
   final List<ContentItem> episodes;
 
   /// Provider-side identifier used by the HypeTV API for details/playback.
@@ -140,6 +144,13 @@ class ContentItem {
       year: _asInt(json['year']),
       categoryId: json['category_id']?.toString(),
       isAdult: _asBool(json['is_adult']),
+      catchupAvailable: _asBool(
+        json['catchup'] ?? json['has_catchup'] ?? json['tv_archive'],
+      ),
+      catchupDays: _asInt(
+            json['catchup_days'] ?? json['archive_days'] ?? json['tv_archive_duration'],
+          ) ??
+          0,
       episodes: _parseEpisodes(rawEpisodes),
     );
   }
@@ -201,6 +212,8 @@ class ContentItem {
     'year': year,
     'category_id': categoryId,
     'is_adult': isAdult,
+    'catchup': catchupAvailable,
+    'catchup_days': catchupDays,
   };
 
   static List<ContentItem> _parseEpisodes(dynamic value) {

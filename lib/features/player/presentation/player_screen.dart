@@ -188,10 +188,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _openSystemPlayer() async {
     await _player.pause();
     try {
-      final opened = await launchUrl(
-        Uri.parse(widget.arguments.source.url),
-        mode: LaunchMode.externalApplication,
-      );
+      final uri = Uri.parse(widget.arguments.source.url);
+      final opened = await canLaunchUrl(uri) &&
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened && mounted) {
         await _player.play();
         if (mounted) {
@@ -306,10 +305,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  Future<void> _playCatchup(EpgEntry entry) async {
+    try {
+      final source = await ref
+          .read(catalogueServiceProvider)
+          .resolveCatchup(widget.arguments.item, entry);
+      if (!mounted) {
+        return;
+      }
+      await context.push(
+        '/player',
+        extra: PlayerArguments(source: source, item: widget.arguments.item),
+      );
+    } on CatalogueException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error.userMessage)));
+    }
+  }
+
   Future<void> _showGuide() async {
     _scheduleControls();
     Future<List<EpgEntry>> load() =>
-        ref.read(catalogueServiceProvider).fetchEpg(widget.arguments.item);
+        ref.read(catalogueServiceProvider).fetchEpg(widget.arguments.item, limit: 40, includePast: true);
 
     var future = load();
     await showDialog<void>(
@@ -347,8 +368,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         if (entry.start != null) _formatClock(entry.start!),
                         if (entry.end != null) _formatClock(entry.end!),
                       ].join(' – ');
+                      final catchup =
+                          widget.arguments.item.catchupAvailable && entry.isPast;
                       return ListTile(
                         autofocus: index == 0,
+                        leading: catchup
+                            ? const Icon(Icons.history_rounded)
+                            : entry.isCurrent
+                                ? const Icon(Icons.play_circle_fill_rounded)
+                                : null,
                         title: Text(entry.title),
                         subtitle: Text(
                           [
@@ -358,6 +386,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        trailing: catchup
+                            ? const Text('Watch from start')
+                            : null,
+                        onTap: catchup
+                            ? () async {
+                                Navigator.pop(dialogContext);
+                                await _playCatchup(entry);
+                              }
+                            : null,
                       );
                     },
                   );
@@ -365,6 +402,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
             actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  context.push('/guide');
+                },
+                child: const Text('Full guide'),
+              ),
               TextButton(
                 onPressed: () {
                   setDialogState(() {
@@ -749,6 +793,7 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
   Widget build(BuildContext context) {
     return Focus(
       focusNode: widget.focusNode,
+      descendantsAreFocusable: false,
       onFocusChange: (value) {
         setState(() => _focused = value);
         widget.onFocusChange(value);

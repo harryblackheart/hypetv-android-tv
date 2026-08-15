@@ -1,5 +1,6 @@
 package tv.hype.hypetv
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -16,49 +17,78 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hypetv/update")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "installApk" -> {
-                        val path = call.argument<String>("path")
-                        if (path.isNullOrBlank()) {
-                            result.error("INVALID_APK", "The downloaded APK path was empty.", null)
-                            return@setMethodCallHandler
-                        }
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-                                !packageManager.canRequestPackageInstalls()
-                            ) {
-                                startActivity(
-                                    Intent(
-                                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                        Uri.parse("package:$packageName")
-                                    )
-                                )
-                                result.error(
-                                    "INSTALL_PERMISSION_REQUIRED",
-                                    "Allow HypeTV to install updates, then press Update again.",
-                                    null
-                                )
-                                return@setMethodCallHandler
-                            }
-
-                            val file = File(path)
-                            val uri = FileProvider.getUriForFile(
-                                this,
-                                "$packageName.fileprovider",
-                                file
-                            )
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(uri, "application/vnd.android.package-archive")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            startActivity(intent)
-                            result.success(null)
-                        } catch (error: Exception) {
-                            result.error("INSTALL_FAILED", error.message, null)
-                        }
-                    }
+                    "installApk" -> installApk(call.argument("path"), result)
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun installApk(path: String?, result: MethodChannel.Result) {
+        if (path.isNullOrBlank()) {
+            result.error("INVALID_APK", "The downloaded APK path was empty.", null)
+            return
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                !packageManager.canRequestPackageInstalls()
+            ) {
+                val packageSettings = Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName")
+                )
+                try {
+                    startActivity(packageSettings)
+                } catch (_: ActivityNotFoundException) {
+                    startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+                }
+                result.error(
+                    "INSTALL_PERMISSION_REQUIRED",
+                    "Allow HypeTV to install unknown apps, then press Update now again.",
+                    null
+                )
+                return
+            }
+
+            val file = File(path)
+            if (!file.exists() || file.length() == 0L) {
+                result.error("INVALID_APK", "The downloaded update file is missing.", null)
+                return
+            }
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                file
+            )
+
+            val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                data = uri
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                putExtra(Intent.EXTRA_RETURN_RESULT, false)
+            }
+
+            val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            when {
+                installIntent.resolveActivity(packageManager) != null -> startActivity(installIntent)
+                fallbackIntent.resolveActivity(packageManager) != null -> startActivity(fallbackIntent)
+                else -> {
+                    result.error(
+                        "NO_PACKAGE_INSTALLER",
+                        "This Android TV does not expose a package installer for in-app updates.",
+                        null
+                    )
+                    return
+                }
+            }
+            result.success(null)
+        } catch (error: Exception) {
+            result.error("INSTALL_FAILED", error.message ?: "Update installer failed.", null)
+        }
     }
 }

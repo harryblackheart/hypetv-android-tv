@@ -5,6 +5,7 @@ import 'package:hypetv/features/activation/presentation/activation_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catalogue_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catalogue_diagnostics_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/content_details_screen.dart';
+import 'package:hypetv/features/catalogue/presentation/live_guide_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/search_screen.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/favourites/presentation/favourites_screen.dart';
@@ -32,6 +33,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const PlatformGate(
           child: CatalogueScreen(type: CatalogueType.live),
         ),
+      ),
+      GoRoute(
+        path: '/guide',
+        builder: (context, state) =>
+            const PlatformGate(child: LiveGuideScreen()),
       ),
       GoRoute(
         path: '/movies',

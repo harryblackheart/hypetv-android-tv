@@ -53,6 +53,7 @@ class _MediaCardState extends State<MediaCard> {
         curve: Curves.easeOut,
         child: Focus(
           autofocus: widget.autofocus,
+          descendantsAreFocusable: false,
           onKeyEvent: (_, event) {
             if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
                 event.logicalKey == LogicalKeyboardKey.arrowUp &&
@@ -121,6 +122,24 @@ class _MediaCardState extends State<MediaCard> {
                       ),
                     ),
                   ),
+                  if (widget.item.type == 'live' &&
+                      widget.item.catchupAvailable)
+                    Positioned(
+                      right: 10,
+                      top: 10,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.history_rounded,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                   if (widget.item.badge case final badge?)
                     Positioned(
                       left: 10,

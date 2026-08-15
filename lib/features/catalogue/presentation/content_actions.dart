@@ -51,10 +51,13 @@ Future<void> playContent(
     if (mode == PlaybackMode.system) {
       var opened = false;
       try {
-        opened = await launchUrl(
-          Uri.parse(source.url),
-          mode: LaunchMode.externalApplication,
-        );
+        final uri = Uri.parse(source.url);
+        if (await canLaunchUrl(uri)) {
+          opened = await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication,
+          );
+        }
       } catch (_) {
         opened = false;
       }

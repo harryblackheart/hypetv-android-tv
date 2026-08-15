@@ -128,6 +128,14 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
                   const Spacer(),
+                  if (widget.type == CatalogueType.live) ...[
+                    FilledButton.icon(
+                      onPressed: () => context.push('/guide'),
+                      icon: const Icon(Icons.calendar_view_week_rounded),
+                      label: const Text('Guide'),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   IconButton(
                     tooltip: 'Refresh',
                     onPressed: () => _load(categoryId: _selectedCategory),

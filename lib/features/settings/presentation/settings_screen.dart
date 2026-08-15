@@ -186,26 +186,9 @@ class SettingsScreen extends ConsumerWidget {
                           icon: Icons.live_tv_rounded,
                           title: 'TV Guide / EPG',
                           subtitle:
-                              'Guide data is fetched fresh whenever you open Guide on a live channel',
-                          actionLabel: 'Info',
-                          onPressed: () => showDialog<void>(
-                            context: context,
-                            builder: (dialogContext) => AlertDialog(
-                              title: const Text('TV Guide / EPG'),
-                              content: const Text(
-                                'Open any Live TV channel, press Up, then select Guide. '
-                                'The guide is fetched from the HypeTV server when opened. '
-                                'Use Refresh inside the guide to request it again immediately.',
-                              ),
-                              actions: [
-                                FilledButton(
-                                  autofocus: true,
-                                  onPressed: () => Navigator.pop(dialogContext),
-                                  child: const Text('OK'),
-                                ),
-                              ],
-                            ),
-                          ),
+                              'Open the full channel-group guide. Guide data refreshes whenever it is opened.',
+                          actionLabel: 'Open',
+                          onPressed: () => context.push('/guide'),
                         ),
                         const SizedBox(height: 34),
                         const _SectionTitle('PLAYBACK'),
@@ -347,6 +330,7 @@ class _SettingsTileState extends State<_SettingsTile> {
     final interactive = widget.onPressed != null;
     return Focus(
       canRequestFocus: interactive,
+      descendantsAreFocusable: false,
       onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
       onFocusChange: (value) {
         setState(() => _focused = value);
