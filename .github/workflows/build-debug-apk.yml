@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release-apk-${{ github.ref }}
@@ -75,6 +75,26 @@ jobs:
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
 
+      - name: Read app version
+        id: app_version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d '+' -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/HypeTV-$VERSION.apk"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.app_version.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          ASSET="build/app/outputs/flutter-apk/HypeTV-$VERSION.apk"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber
+          else
+            gh release create "$TAG" "$ASSET" --title "HypeTV $VERSION" --generate-notes --latest
+          fi
+
       - name: Remove temporary signing files
         if: always()
         run: rm -f android/app/hypetv-release.jks android/key.properties
@@ -83,6 +103,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: hypetv-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/HypeTV-*.apk
           if-no-files-found: error
           retention-days: 30

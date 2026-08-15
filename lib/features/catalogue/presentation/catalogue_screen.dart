@@ -129,6 +129,12 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                   ),
                   const Spacer(),
                   IconButton(
+                    tooltip: 'Refresh',
+                    onPressed: () => _load(categoryId: _selectedCategory),
+                    icon: const Icon(Icons.refresh_rounded, size: 30),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
                     tooltip: 'Search',
                     onPressed: () => context.push(
                       '/search',

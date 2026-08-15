@@ -235,6 +235,31 @@ class CatalogueService {
     return _parseItems(body);
   }
 
+  Future<List<EpgEntry>> fetchEpg(ContentItem item, {int limit = 12}) async {
+    final id = item.upstreamId;
+    if (id == null || id.isEmpty) {
+      return const [];
+    }
+    final body = await _get(
+      '/api/catalog/epg/${_providerId(id)}',
+      query: {'limit': '$limit'},
+    );
+    final values = _listAt(body, const [
+      'epg_listings',
+      'listings',
+      'programmes',
+      'programs',
+      'epg',
+      'items',
+      'data',
+    ]);
+    return values
+        .whereType<Map<String, dynamic>>()
+        .map(EpgEntry.fromJson)
+        .where((entry) => entry.title.isNotEmpty)
+        .toList(growable: false);
+  }
+
   Future<PlaybackSource> resolvePlayback(ContentItem item) async {
     final id = item.upstreamId;
     if (id == null || id.isEmpty) {
@@ -432,4 +457,58 @@ class _CatalogueHttpResponse {
   const _CatalogueHttpResponse({required this.statusCode, required this.body});
   final int statusCode;
   final Map<String, dynamic> body;
+}
+
+class EpgEntry {
+  const EpgEntry({
+    required this.title,
+    this.description = '',
+    this.start,
+    this.end,
+  });
+
+  final String title;
+  final String description;
+  final DateTime? start;
+  final DateTime? end;
+
+  factory EpgEntry.fromJson(Map<String, dynamic> json) {
+    return EpgEntry(
+      title: _epgText(json['title'] ?? json['name']),
+      description: _epgText(
+        json['description'] ?? json['desc'] ?? json['plot'],
+      ),
+      start: _epgDate(json['start_timestamp'] ?? json['start'] ?? json['start_time']),
+      end: _epgDate(json['stop_timestamp'] ?? json['end'] ?? json['end_time']),
+    );
+  }
+}
+
+String _epgText(dynamic value) {
+  final text = value?.toString().trim() ?? '';
+  if (text.isEmpty) {
+    return '';
+  }
+  try {
+    final decoded = utf8.decode(base64.decode(text));
+    if (decoded.trim().isNotEmpty) {
+      return decoded.trim();
+    }
+  } catch (_) {
+    // Many providers already return plain text.
+  }
+  return text;
+}
+
+DateTime? _epgDate(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  final raw = value.toString().trim();
+  final seconds = int.tryParse(raw);
+  if (seconds != null) {
+    final milliseconds = seconds > 1000000000000 ? seconds : seconds * 1000;
+    return DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true).toLocal();
+  }
+  return DateTime.tryParse(raw)?.toLocal();
 }

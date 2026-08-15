@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
+import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/services/favourites_service.dart';
 import 'package:hypetv/services/watch_history_service.dart';
@@ -33,6 +34,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final _backFocus = FocusNode(debugLabel: 'player-back');
   final _favouriteFocus = FocusNode(debugLabel: 'player-favourite');
   final _tracksFocus = FocusNode(debugLabel: 'player-tracks');
+  final _guideFocus = FocusNode(debugLabel: 'player-guide');
   final _playFocus = FocusNode(debugLabel: 'player-play');
   final _rewindFocus = FocusNode(debugLabel: 'player-rewind');
   final _forwardFocus = FocusNode(debugLabel: 'player-forward');
@@ -45,6 +47,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   var _buffering = true;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  DateTime _lastPositionUiRefresh = DateTime.fromMillisecondsSinceEpoch(0);
   Tracks _tracks = const Tracks();
   Track _track = const Track();
 
@@ -53,11 +56,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _player = Player();
+    _player = Player(
+      configuration: PlayerConfiguration(
+        bufferSize: _isLive ? 64 * 1024 * 1024 : 128 * 1024 * 1024,
+      ),
+    );
     _videoController = VideoController(
       _player,
       configuration: const VideoControllerConfiguration(
-        hwdec: 'auto-safe',
+        hwdec: 'auto',
         enableHardwareAcceleration: true,
       ),
     );
@@ -73,9 +80,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }
       }),
       _player.stream.position.listen((value) {
-        if (mounted) {
-          setState(() => _position = value);
+        _position = value;
+        if (_isLive || !mounted) {
+          return;
         }
+        final now = DateTime.now();
+        if (now.difference(_lastPositionUiRefresh) <
+            const Duration(milliseconds: 250)) {
+          return;
+        }
+        _lastPositionUiRefresh = now;
+        setState(() {});
       }),
       _player.stream.duration.listen((value) {
         if (mounted) {
@@ -134,6 +149,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _backFocus,
         _favouriteFocus,
         _tracksFocus,
+        _guideFocus,
         _playFocus,
         _rewindFocus,
         _forwardFocus,
@@ -171,14 +187,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _openSystemPlayer() async {
     await _player.pause();
-    final opened = await launchUrl(
-      Uri.parse(widget.arguments.source.url),
-      mode: LaunchMode.externalApplication,
-    );
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No compatible system player was found.')),
+    try {
+      final opened = await launchUrl(
+        Uri.parse(widget.arguments.source.url),
+        mode: LaunchMode.externalApplication,
       );
+      if (!opened && mounted) {
+        await _player.play();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No external video player is installed. Continuing in HypeTV.',
+              ),
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      await _player.play();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No external video player is installed. Continuing in HypeTV.',
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -270,6 +306,85 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  Future<void> _showGuide() async {
+    _scheduleControls();
+    Future<List<EpgEntry>> load() =>
+        ref.read(catalogueServiceProvider).fetchEpg(widget.arguments.item);
+
+    var future = load();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text('TV Guide · ${widget.arguments.item.title}'),
+            content: SizedBox(
+              width: 760,
+              height: 430,
+              child: FutureBuilder<List<EpgEntry>>(
+                future: future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return const Center(
+                      child: Text('Guide data is unavailable for this channel.'),
+                    );
+                  }
+                  final entries = snapshot.data ?? const <EpgEntry>[];
+                  if (entries.isEmpty) {
+                    return const Center(
+                      child: Text('No programme guide data is available right now.'),
+                    );
+                  }
+                  return ListView.separated(
+                    itemCount: entries.length,
+                    separatorBuilder: (_, _) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final entry = entries[index];
+                      final time = [
+                        if (entry.start != null) _formatClock(entry.start!),
+                        if (entry.end != null) _formatClock(entry.end!),
+                      ].join(' – ');
+                      return ListTile(
+                        autofocus: index == 0,
+                        title: Text(entry.title),
+                        subtitle: Text(
+                          [
+                            if (time.isNotEmpty) time,
+                            if (entry.description.isNotEmpty) entry.description,
+                          ].join(' · '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  setDialogState(() {
+                    future = load();
+                  });
+                },
+                child: const Text('Refresh'),
+              ),
+              FilledButton(
+                autofocus: true,
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _stopAndPop() async {
     if (_exiting) {
       return;
@@ -319,11 +434,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       unawaited(_togglePlayback());
       return KeyEventResult.handled;
     }
-    if (event is KeyDownEvent &&
-        (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack)) {
-      unawaited(_stopAndPop());
-      return KeyEventResult.handled;
-    }
     _scheduleControls();
     return KeyEventResult.ignored;
   }
@@ -359,6 +469,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _backFocus,
       _favouriteFocus,
       _tracksFocus,
+      _guideFocus,
       _playFocus,
       _rewindFocus,
       _forwardFocus,
@@ -465,6 +576,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       icon: Icons.arrow_back_rounded,
                                       onPressed: _stopAndPop,
                                       onFocusChange: _onControlFocus,
+                                      onArrowRight: () => _favouriteFocus.requestFocus(),
+                                      onArrowDown: () => _playFocus.requestFocus(),
                                     ),
                                     const SizedBox(width: 16),
                                     Expanded(
@@ -489,6 +602,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                           .read(favouritesProvider.notifier)
                                           .toggle(item),
                                       onFocusChange: _onControlFocus,
+                                      onArrowLeft: () => _backFocus.requestFocus(),
+                                      onArrowRight: () => (_isLive
+                                              ? _guideFocus
+                                              : _tracksFocus)
+                                          .requestFocus(),
+                                      onArrowDown: () => _playFocus.requestFocus(),
                                     ),
                                     if (!_isLive)
                                       _PlayerIconButton(
@@ -497,6 +616,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                         icon: Icons.subtitles_rounded,
                                         onPressed: _showTracks,
                                         onFocusChange: _onControlFocus,
+                                        onArrowLeft: () =>
+                                            _favouriteFocus.requestFocus(),
+                                        onArrowDown: () => _playFocus.requestFocus(),
+                                      ),
+                                    if (_isLive)
+                                      _PlayerIconButton(
+                                        focusNode: _guideFocus,
+                                        tooltip: 'TV Guide',
+                                        icon: Icons.live_tv_rounded,
+                                        onPressed: _showGuide,
+                                        onFocusChange: _onControlFocus,
+                                        onArrowLeft: () =>
+                                            _favouriteFocus.requestFocus(),
+                                        onArrowDown: () => _playFocus.requestFocus(),
                                       ),
                                     if (_isLive)
                                       const Chip(
@@ -521,6 +654,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       filled: true,
                                       onPressed: _togglePlayback,
                                       onFocusChange: _onControlFocus,
+                                      onArrowUp: () => _favouriteFocus.requestFocus(),
                                     ),
                                     if (!_isLive) ...[
                                       const SizedBox(width: 12),
@@ -587,6 +721,10 @@ class _PlayerIconButton extends StatefulWidget {
     required this.onPressed,
     required this.onFocusChange,
     this.filled = false,
+    this.onArrowLeft,
+    this.onArrowRight,
+    this.onArrowUp,
+    this.onArrowDown,
   });
 
   final FocusNode focusNode;
@@ -595,6 +733,10 @@ class _PlayerIconButton extends StatefulWidget {
   final VoidCallback onPressed;
   final ValueChanged<bool> onFocusChange;
   final bool filled;
+  final VoidCallback? onArrowLeft;
+  final VoidCallback? onArrowRight;
+  final VoidCallback? onArrowUp;
+  final VoidCallback? onArrowDown;
 
   @override
   State<_PlayerIconButton> createState() => _PlayerIconButtonState();
@@ -612,6 +754,28 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
         widget.onFocusChange(value);
       },
       onKeyEvent: (_, event) {
+        if (event is KeyDownEvent || event is KeyRepeatEvent) {
+          final key = event.logicalKey;
+          if (key == LogicalKeyboardKey.arrowLeft &&
+              widget.onArrowLeft != null) {
+            widget.onArrowLeft!();
+            return KeyEventResult.handled;
+          }
+          if (key == LogicalKeyboardKey.arrowRight &&
+              widget.onArrowRight != null) {
+            widget.onArrowRight!();
+            return KeyEventResult.handled;
+          }
+          if (key == LogicalKeyboardKey.arrowUp && widget.onArrowUp != null) {
+            widget.onArrowUp!();
+            return KeyEventResult.handled;
+          }
+          if (key == LogicalKeyboardKey.arrowDown &&
+              widget.onArrowDown != null) {
+            widget.onArrowDown!();
+            return KeyEventResult.handled;
+          }
+        }
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
                 event.logicalKey == LogicalKeyboardKey.enter ||
@@ -647,6 +811,12 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
       ),
     );
   }
+}
+
+String _formatClock(DateTime value) {
+  final hour = value.hour.toString().padLeft(2, '0');
+  final minute = value.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
 }
 
 String _formatDuration(Duration value) {

@@ -4,12 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/activation/presentation/activation_controller.dart';
+import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/services/secure_storage_service.dart';
 import 'package:hypetv/services/playback_preferences_service.dart';
 import 'package:hypetv/services/update_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 import 'package:hypetv/widgets/tv_action.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 final activationCodeProvider = FutureProvider<String?>(
   (ref) => ref.watch(secureStorageServiceProvider).activationCode,
@@ -126,28 +126,115 @@ class SettingsScreen extends ConsumerWidget {
                             subtitle:
                                 'Installed version ${info.currentVersion}',
                             actionLabel: info.updateAvailable
-                                ? 'View update'
+                                ? 'Update now'
                                 : 'Check again',
                             onPressed: () async {
-                              if (info.updateAvailable) {
-                                await launchUrl(
-                                  info.releaseUri,
-                                  mode: LaunchMode.externalApplication,
-                                );
-                              } else {
+                              if (!info.updateAvailable) {
                                 ref.invalidate(updateCheckProvider);
+                                return;
+                              }
+                              try {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Downloading HypeTV update…'),
+                                  ),
+                                );
+                                await ref
+                                    .read(updateServiceProvider)
+                                    .downloadAndInstall(info);
+                              } catch (error) {
+                                if (!context.mounted) {
+                                  return;
+                                }
+                                ScaffoldMessenger.of(context)
+                                  ..hideCurrentSnackBar()
+                                  ..showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        error.toString().replaceFirst(
+                                              'PlatformException',
+                                              'Update',
+                                            ),
+                                      ),
+                                    ),
+                                  );
                               }
                             },
+                          ),
+                        ),
+                        const SizedBox(height: 34),
+                        const _SectionTitle('CONTENT'),
+                        _SettingsTile(
+                          icon: Icons.refresh_rounded,
+                          title: 'Refresh HypeTV content',
+                          subtitle:
+                              'Reload Live TV, Movies and Series from the server now',
+                          actionLabel: 'Refresh',
+                          onPressed: () {
+                            ref.invalidate(homeCatalogueProvider);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'HypeTV content refresh requested. Live screens also reload when reopened.',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _SettingsTile(
+                          icon: Icons.live_tv_rounded,
+                          title: 'TV Guide / EPG',
+                          subtitle:
+                              'Guide data is fetched fresh whenever you open Guide on a live channel',
+                          actionLabel: 'Info',
+                          onPressed: () => showDialog<void>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('TV Guide / EPG'),
+                              content: const Text(
+                                'Open any Live TV channel, press Up, then select Guide. '
+                                'The guide is fetched from the HypeTV server when opened. '
+                                'Use Refresh inside the guide to request it again immediately.',
+                              ),
+                              actions: [
+                                FilledButton(
+                                  autofocus: true,
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 34),
                         const _SectionTitle('PLAYBACK'),
                         _PlaybackModeTile(),
                         const SizedBox(height: 16),
-                        const _SettingsTile(
+                        _SettingsTile(
                           icon: Icons.subtitles_rounded,
                           title: 'Audio & subtitles',
-                          subtitle: 'Embedded track selection is available when the selected playback engine exposes those tracks. System player is the compatibility fallback for titles that need native track controls.',
+                          subtitle:
+                              'Choose audio and subtitle tracks while a film or series is playing.',
+                          actionLabel: 'Info',
+                          onPressed: () => showDialog<void>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('Audio & subtitles'),
+                              content: const Text(
+                                'During playback, press Up to open the top controls, '
+                                'then move to the subtitles icon. HypeTV now reads '
+                                'embedded audio and subtitle tracks directly from the stream.',
+                              ),
+                              actions: [
+                                FilledButton(
+                                  autofocus: true,
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 34),
                         if (kDebugMode) ...[
@@ -162,10 +249,29 @@ class SettingsScreen extends ConsumerWidget {
                           const SizedBox(height: 34),
                         ],
                         const _SectionTitle('DEVICE'),
-                        const _SettingsTile(
+                        _SettingsTile(
                           icon: Icons.high_quality_rounded,
                           title: 'Display',
-                          subtitle: 'Optimised automatically for 1080p and 4K',
+                          subtitle: 'Automatic TV resolution and aspect-ratio handling',
+                          actionLabel: 'View',
+                          onPressed: () => showDialog<void>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('Display'),
+                              content: const Text(
+                                'HypeTV automatically matches the TV display. Video is '
+                                'kept in its original aspect ratio to prevent stretching '
+                                'or cropping on 1080p and 4K screens.',
+                              ),
+                              actions: [
+                                FilledButton(
+                                  autofocus: true,
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 16),
                         _SettingsTile(

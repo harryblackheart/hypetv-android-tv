@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/widgets/tv_action.dart';
@@ -10,12 +11,14 @@ class MediaCard extends StatefulWidget {
     required this.onPressed,
     super.key,
     this.autofocus = false,
+    this.onArrowUp,
   });
 
   final ContentItem item;
   final double width;
   final VoidCallback onPressed;
   final bool autofocus;
+  final VoidCallback? onArrowUp;
 
   @override
   State<MediaCard> createState() => _MediaCardState();
@@ -50,7 +53,15 @@ class _MediaCardState extends State<MediaCard> {
         curve: Curves.easeOut,
         child: Focus(
           autofocus: widget.autofocus,
-          onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
+          onKeyEvent: (_, event) {
+            if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
+                event.logicalKey == LogicalKeyboardKey.arrowUp &&
+                widget.onArrowUp != null) {
+              widget.onArrowUp!();
+              return KeyEventResult.handled;
+            }
+            return activateOnTvKey(event, widget.onPressed);
+          },
           onFocusChange: _handleFocus,
           child: InkWell(
             onTap: widget.onPressed,
@@ -81,11 +92,18 @@ class _MediaCardState extends State<MediaCard> {
                 fit: StackFit.expand,
                 children: [
                   if (widget.item.imageUrl.isNotEmpty)
-                    Image.network(
-                      widget.item.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const _ArtworkFallback(),
+                    Padding(
+                      padding: widget.item.type == 'live'
+                          ? const EdgeInsets.fromLTRB(18, 14, 18, 58)
+                          : EdgeInsets.zero,
+                      child: Image.network(
+                        widget.item.imageUrl,
+                        fit: widget.item.type == 'live'
+                            ? BoxFit.contain
+                            : BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const _ArtworkFallback(),
+                      ),
                     )
                   else
                     const _ArtworkFallback(),

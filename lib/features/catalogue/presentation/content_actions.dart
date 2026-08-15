@@ -49,12 +49,27 @@ Future<void> playContent(
     Navigator.of(context, rootNavigator: true).pop();
     final mode = ref.read(playbackModeProvider).value ?? PlaybackMode.auto;
     if (mode == PlaybackMode.system) {
-      final opened = await launchUrl(
-        Uri.parse(source.url),
-        mode: LaunchMode.externalApplication,
-      );
+      var opened = false;
+      try {
+        opened = await launchUrl(
+          Uri.parse(source.url),
+          mode: LaunchMode.externalApplication,
+        );
+      } catch (_) {
+        opened = false;
+      }
       if (!opened && context.mounted) {
-        context.push('/player', extra: PlayerArguments(source: source, item: item));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No external video player is installed. Using HypeTV player.',
+            ),
+          ),
+        );
+        context.push(
+          '/player',
+          extra: PlayerArguments(source: source, item: item),
+        );
       }
       return;
     }
