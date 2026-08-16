@@ -11,7 +11,6 @@ import 'package:hypetv/services/favourites_service.dart';
 import 'package:hypetv/services/watch_history_service.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class PlayerArguments {
   const PlayerArguments({required this.source, required this.item});
@@ -196,38 +195,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _scheduleControls();
   }
 
-  Future<void> _openSystemPlayer() async {
-    await _player.pause();
-    try {
-      final uri = Uri.parse(widget.arguments.source.url);
-      final opened = await canLaunchUrl(uri) &&
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!opened && mounted) {
-        await _player.play();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'No external video player is installed. Continuing in HypeTV.',
-              ),
-            ),
-          );
-        }
-      }
-    } catch (_) {
-      await _player.play();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No external video player is installed. Continuing in HypeTV.',
-            ),
-          ),
-        );
-      }
-    }
-  }
-
   String _trackLabel(dynamic track, String fallback) {
     final title = track.title?.toString().trim();
     final language = track.language?.toString().trim();
@@ -329,108 +296,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(error.userMessage)));
     }
-  }
-
-  Future<void> _showGuide() async {
-    _scheduleControls();
-    Future<List<EpgEntry>> load() =>
-        ref.read(catalogueServiceProvider).fetchEpg(widget.arguments.item, limit: 40, includePast: true);
-
-    var future = load();
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: Text('TV Guide · ${widget.arguments.item.title}'),
-            content: SizedBox(
-              width: 760,
-              height: 430,
-              child: FutureBuilder<List<EpgEntry>>(
-                future: future,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return const Center(
-                      child: Text('Guide data is unavailable for this channel.'),
-                    );
-                  }
-                  final entries = snapshot.data ?? const <EpgEntry>[];
-                  if (entries.isEmpty) {
-                    return const Center(
-                      child: Text('No programme guide data is available right now.'),
-                    );
-                  }
-                  return ListView.separated(
-                    itemCount: entries.length,
-                    separatorBuilder: (_, _) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final entry = entries[index];
-                      final time = [
-                        if (entry.start != null) _formatClock(entry.start!),
-                        if (entry.end != null) _formatClock(entry.end!),
-                      ].join(' – ');
-                      final catchup =
-                          widget.arguments.item.catchupAvailable && entry.isPast;
-                      return ListTile(
-                        autofocus: index == 0,
-                        leading: catchup
-                            ? const Icon(Icons.history_rounded)
-                            : entry.isCurrent
-                                ? const Icon(Icons.play_circle_fill_rounded)
-                                : null,
-                        title: Text(entry.title),
-                        subtitle: Text(
-                          [
-                            if (time.isNotEmpty) time,
-                            if (entry.description.isNotEmpty) entry.description,
-                          ].join(' · '),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: catchup
-                            ? const Text('Watch from start')
-                            : null,
-                        onTap: catchup
-                            ? () async {
-                                Navigator.pop(dialogContext);
-                                await _playCatchup(entry);
-                              }
-                            : null,
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  context.push('/guide');
-                },
-                child: const Text('Full guide'),
-              ),
-              TextButton(
-                onPressed: () {
-                  setDialogState(() {
-                    future = load();
-                  });
-                },
-                child: const Text('Refresh'),
-              ),
-              FilledButton(
-                autofocus: true,
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Close'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
   }
 
   Future<void> _stopAndPop() async {
