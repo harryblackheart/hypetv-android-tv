@@ -4,12 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:hypetv/features/activation/presentation/activation_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catalogue_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catalogue_diagnostics_screen.dart';
+import 'package:hypetv/features/catalogue/presentation/catchup_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/content_details_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/live_guide_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/search_screen.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/favourites/presentation/favourites_screen.dart';
 import 'package:hypetv/features/home/presentation/home_screen.dart';
+import 'package:hypetv/features/messages/presentation/messages_screen.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
 import 'package:hypetv/features/platform/presentation/platform_gate.dart';
 import 'package:hypetv/features/settings/presentation/settings_screen.dart';
@@ -35,9 +37,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/catchup',
+        builder: (context, state) => const PlatformGate(child: CatchupScreen()),
+      ),
+      GoRoute(
         path: '/guide',
-        builder: (context, state) =>
-            const PlatformGate(child: LiveGuideScreen()),
+        builder: (context, state) => PlatformGate(
+          child: LiveGuideScreen(
+            initialChannel: state.extra is ContentItem ? state.extra! as ContentItem : null,
+          ),
+        ),
       ),
       GoRoute(
         path: '/movies',
@@ -93,6 +102,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/debug/catalogue',
           builder: (context, state) => const CatalogueDiagnosticsScreen(),
         ),
+      GoRoute(
+        path: '/messages',
+        builder: (context, state) => const PlatformGate(child: MessagesScreen()),
+      ),
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),

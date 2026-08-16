@@ -14,6 +14,7 @@ import 'package:hypetv/widgets/brand_logo.dart';
 import 'package:hypetv/widgets/tv_button.dart';
 import 'package:hypetv/widgets/tv_action.dart';
 import 'package:hypetv/services/watch_history_service.dart';
+import 'package:hypetv/services/content_preferences_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -51,7 +52,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       data: (shelves) {
         final history = ref.watch(watchHistoryProvider).value ?? const [];
+        final prefs = ref.watch(contentPreferencesProvider).value ?? const ContentPreferences();
         final contentShelves = shelves
+            .map((shelf) => ContentShelf(
+                  title: shelf.title,
+                  items: shelf.items.where((item) {
+                    final type = catalogueTypeOf(item);
+                    return switch (type) {
+                      CatalogueType.live => prefs.showLive,
+                      CatalogueType.movie => prefs.showMovies,
+                      CatalogueType.series => prefs.showSeries,
+                      null => true,
+                    };
+                  }).toList(growable: false),
+                ))
             .where((shelf) => shelf.items.isNotEmpty)
             .toList(growable: false);
         final hasContinueWatching = contentShelves.any(
@@ -386,7 +400,7 @@ String? _browseRouteForShelf(ContentShelf shelf) {
   return null;
 }
 
-class _ContentRail extends ConsumerStatefulWidget {
+class _ContentRail extends ConsumerWidget {
   const _ContentRail({
     required this.shelf,
     required this.cardWidth,
@@ -400,30 +414,15 @@ class _ContentRail extends ConsumerStatefulWidget {
   final bool autofocus;
 
   @override
-  ConsumerState<_ContentRail> createState() => _ContentRailState();
-}
-
-class _ContentRailState extends ConsumerState<_ContentRail> {
-  final _browseFocus = FocusNode(debugLabel: 'browse-all');
-
-  @override
-  void dispose() {
-    _browseFocus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final shelf = widget.shelf;
-    final route = _browseRouteForShelf(shelf);
-    final cardHeight = widget.cardWidth * .58 + 54;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cardHeight = cardWidth * .58 + 54;
     return Padding(
       padding: const EdgeInsets.only(bottom: 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: Row(
               children: [
                 Expanded(
@@ -432,9 +431,8 @@ class _ContentRailState extends ConsumerState<_ContentRail> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
-                if (route != null)
+                if (_browseRouteForShelf(shelf) case final route?)
                   TextButton.icon(
-                    focusNode: _browseFocus,
                     onPressed: () => context.push(route),
                     icon: const Icon(Icons.grid_view_rounded, size: 20),
                     label: const Text('Browse all'),
@@ -449,16 +447,15 @@ class _ContentRailState extends ConsumerState<_ContentRail> {
               scrollDirection: Axis.horizontal,
               clipBehavior: Clip.none,
               padding: EdgeInsets.symmetric(
-                horizontal: widget.horizontalPadding,
+                horizontal: horizontalPadding,
                 vertical: cardHeight * .04,
               ),
               itemCount: shelf.items.length,
               separatorBuilder: (_, _) => const SizedBox(width: 18),
               itemBuilder: (context, index) => MediaCard(
                 item: shelf.items[index],
-                width: widget.cardWidth,
-                autofocus: widget.autofocus && index == 0,
-                onArrowUp: route == null ? null : () => _browseFocus.requestFocus(),
+                width: cardWidth,
+                autofocus: autofocus && index == 0,
                 onPressed: () => openContent(context, ref, shelf.items[index]),
               ),
             ),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/constants/app_constants.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/activation/presentation/activation_controller.dart';
+import 'package:hypetv/services/content_preferences_service.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -62,10 +63,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   Future<void> _continue() async {
     final activationFuture = ref.read(activationControllerProvider.future);
+    final preferencesFuture = ref.read(contentPreferencesProvider.future);
     await _controller.forward();
     final activated = await activationFuture;
+    final preferences = await preferencesFuture;
     if (!mounted) return;
-    context.go(activated ? '/home' : '/activate');
+    context.go(activated ? preferences.startScreen.route : '/activate');
   }
 
   @override

@@ -7,6 +7,8 @@ import 'package:hypetv/features/activation/presentation/activation_controller.da
 import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/services/secure_storage_service.dart';
 import 'package:hypetv/services/playback_preferences_service.dart';
+import 'package:hypetv/services/content_preferences_service.dart';
+import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/services/update_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 import 'package:hypetv/widgets/tv_action.dart';
@@ -164,6 +166,26 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 34),
                         const _SectionTitle('CONTENT'),
+                        _StartScreenTile(),
+                        const SizedBox(height: 16),
+                        _ContentVisibilityTile(),
+                        const SizedBox(height: 16),
+                        _SettingsTile(
+                          icon: Icons.view_list_rounded,
+                          title: 'Live TV groups',
+                          subtitle: 'Hide or show provider bouquets on this device',
+                          actionLabel: 'Manage',
+                          onPressed: () => _manageLiveGroups(context, ref),
+                        ),
+                        const SizedBox(height: 16),
+                        _SettingsTile(
+                          icon: Icons.mail_outline_rounded,
+                          title: 'Messages',
+                          subtitle: 'View saved messages and announcements',
+                          actionLabel: 'Open',
+                          onPressed: () => context.push('/messages'),
+                        ),
+                        const SizedBox(height: 16),
                         _SettingsTile(
                           icon: Icons.refresh_rounded,
                           title: 'Refresh HypeTV content',
@@ -275,6 +297,144 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+Future<void> _manageLiveGroups(BuildContext context, WidgetRef ref) async {
+  final service = ref.read(catalogueServiceProvider);
+  final groups = await service.fetchCategories(CatalogueType.live);
+  if (!context.mounted) return;
+  final prefs = ref.read(contentPreferencesProvider).value ?? const ContentPreferences();
+  final hidden = {...prefs.hiddenLiveGroups};
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setLocalState) => AlertDialog(
+        title: const Text('Live TV groups'),
+        content: SizedBox(
+          width: 620,
+          height: 520,
+          child: ListView.builder(
+            itemCount: groups.length,
+            itemBuilder: (context, index) {
+              final group = groups[index];
+              final visible = !hidden.contains(group.id);
+              return CheckboxListTile(
+                autofocus: index == 0,
+                value: visible,
+                title: Text(group.name),
+                onChanged: (value) {
+                  setLocalState(() {
+                    if (value == true) {
+                      hidden.remove(group.id);
+                    } else {
+                      hidden.add(group.id);
+                    }
+                  });
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              await ref.read(contentPreferencesProvider.notifier).save(
+                    prefs.copyWith(hiddenLiveGroups: hidden),
+                  );
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _StartScreenTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefs = ref.watch(contentPreferencesProvider).value ?? const ContentPreferences();
+    return _SettingsTile(
+      icon: Icons.home_work_outlined,
+      title: 'Start screen',
+      subtitle: prefs.startScreen.label,
+      actionLabel: 'Change',
+      onPressed: () async {
+        final selected = await showDialog<StartScreen>(
+          context: context,
+          builder: (dialogContext) => SimpleDialog(
+            title: const Text('Start HypeTV on'),
+            children: [
+              for (final value in StartScreen.values)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(dialogContext, value),
+                  child: Text(value.label),
+                ),
+            ],
+          ),
+        );
+        if (selected != null) {
+          await ref.read(contentPreferencesProvider.notifier).save(
+                prefs.copyWith(startScreen: selected),
+              );
+        }
+      },
+    );
+  }
+}
+
+class _ContentVisibilityTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefs = ref.watch(contentPreferencesProvider).value ?? const ContentPreferences();
+    final enabled = [
+      if (prefs.showLive) 'Live TV',
+      if (prefs.showMovies) 'Movies',
+      if (prefs.showSeries) 'Series',
+    ].join(', ');
+    return _SettingsTile(
+      icon: Icons.visibility_outlined,
+      title: 'Visible sections',
+      subtitle: enabled.isEmpty ? 'No sections enabled' : enabled,
+      actionLabel: 'Change',
+      onPressed: () async {
+        var live = prefs.showLive;
+        var movies = prefs.showMovies;
+        var series = prefs.showSeries;
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setLocalState) => AlertDialog(
+              title: const Text('Visible sections'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CheckboxListTile(value: live, title: const Text('Live TV'), onChanged: (v) => setLocalState(() => live = v ?? true)),
+                  CheckboxListTile(value: movies, title: const Text('Movies'), onChanged: (v) => setLocalState(() => movies = v ?? true)),
+                  CheckboxListTile(value: series, title: const Text('Series'), onChanged: (v) => setLocalState(() => series = v ?? true)),
+                ],
+              ),
+              actions: [
+                FilledButton(
+                  autofocus: true,
+                  onPressed: () async {
+                    await ref.read(contentPreferencesProvider.notifier).save(
+                          prefs.copyWith(showLive: live, showMovies: movies, showSeries: series),
+                        );
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

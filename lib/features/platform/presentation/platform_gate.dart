@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/platform/domain/app_bootstrap.dart';
 import 'package:hypetv/services/platform_service.dart';
+import 'package:hypetv/services/message_history_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
 class PlatformGate extends ConsumerStatefulWidget {
@@ -23,6 +24,7 @@ class _PlatformGateState extends ConsumerState<PlatformGate> {
     ref.listen(appBootstrapProvider, (_, next) {
       final data = next.value;
       if (data != null && !data.maintenance.enabled) {
+        ref.read(messageHistoryProvider.notifier).rememberAll(data.messages);
         _showNextMessage(data.messages);
       }
     });

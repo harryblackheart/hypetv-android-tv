@@ -11,6 +11,7 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
 import 'package:hypetv/services/favourites_service.dart';
 import 'package:hypetv/services/watch_history_service.dart';
+import 'package:hypetv/services/content_preferences_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
 class CatalogueScreen extends ConsumerStatefulWidget {
@@ -49,6 +50,12 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
       var categories = _categories;
       if (categories.isEmpty) {
         categories = await service.fetchCategories(widget.type);
+        if (widget.type == CatalogueType.live) {
+          final prefs = await ref.read(contentPreferencesProvider.future);
+          categories = categories
+              .where((category) => !prefs.hiddenLiveGroups.contains(category.id))
+              .toList(growable: false);
+        }
       }
 
       var effectiveCategory = categoryId;
@@ -129,6 +136,12 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                   ),
                   const Spacer(),
                   if (widget.type == CatalogueType.live) ...[
+                    FilledButton.icon(
+                      onPressed: () => context.push('/catchup'),
+                      icon: const Icon(Icons.history_rounded),
+                      label: const Text('Catch-up'),
+                    ),
+                    const SizedBox(width: 10),
                     FilledButton.icon(
                       onPressed: () => context.push('/guide'),
                       icon: const Icon(Icons.calendar_view_week_rounded),

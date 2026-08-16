@@ -33,6 +33,13 @@ class AppMessage {
   final String message;
   final AppMessagePriority priority;
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'message': message,
+        'priority': priority.name,
+      };
+
   factory AppMessage.fromJson(Map<String, dynamic> json) {
     final priority = switch (json['priority']?.toString().toLowerCase()) {
       'critical' => AppMessagePriority.critical,

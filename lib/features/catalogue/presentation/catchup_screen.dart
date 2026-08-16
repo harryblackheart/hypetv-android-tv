@@ -10,18 +10,14 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
-class LiveGuideScreen extends ConsumerStatefulWidget {
-  const LiveGuideScreen({this.initialChannel, super.key});
-
-  final ContentItem? initialChannel;
+class CatchupScreen extends ConsumerStatefulWidget {
+  const CatchupScreen({super.key});
 
   @override
-  ConsumerState<LiveGuideScreen> createState() => _LiveGuideScreenState();
+  ConsumerState<CatchupScreen> createState() => _CatchupScreenState();
 }
 
-class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
-  static const _guideDays = <int>[1, 3, 7, 14];
-  var _days = 14;
+class _CatchupScreenState extends ConsumerState<CatchupScreen> {
   List<CatalogueCategory> _categories = const [];
   List<ContentItem> _channels = const [];
   String? _categoryId;
@@ -42,24 +38,16 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
     try {
       final service = ref.read(catalogueServiceProvider);
       final categories = await service.fetchCategories(CatalogueType.live);
-      final fetchedChannels = await service.fetchItems(
+      final channels = await service.fetchItems(
         CatalogueType.live,
         categoryId: categoryId,
       );
-      final channels = fetchedChannels.toList();
-      if (widget.initialChannel != null) {
-        final index = channels.indexWhere((item) => item.upstreamId == widget.initialChannel!.upstreamId);
-        if (index > 0) {
-          final selected = channels.removeAt(index);
-          channels.insert(0, selected);
-        }
-      }
       if (!mounted) {
         return;
       }
       setState(() {
         _categories = categories;
-        _channels = channels;
+        _channels = channels.where((channel) => channel.catchupAvailable).toList(growable: false);
         _categoryId = categoryId;
         _loading = false;
       });
@@ -116,21 +104,10 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
                   const BrandLogo(fontSize: 30),
                   const SizedBox(width: 24),
                   Text(
-                    'TV Guide',
+                    'Catch-up TV',
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
                   const Spacer(),
-                  DropdownButton<int>(
-                    value: _days,
-                    items: [
-                      for (final days in _guideDays)
-                        DropdownMenuItem(value: days, child: Text('$days days')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) setState(() => _days = value);
-                    },
-                  ),
-                  const SizedBox(width: 14),
                   IconButton(
                     tooltip: 'Refresh guide',
                     onPressed: () => _load(categoryId: _categoryId),
@@ -177,7 +154,6 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
                     itemBuilder: (context, index) => _GuideChannelRow(
                       channel: _channels[index],
                       autofocus: index == 0,
-                      days: _days,
                       onCatchup: _playCatchup,
                     ),
                   ),
@@ -194,13 +170,11 @@ class _GuideChannelRow extends ConsumerWidget {
   const _GuideChannelRow({
     required this.channel,
     required this.autofocus,
-    required this.days,
     required this.onCatchup,
   });
 
   final ContentItem channel;
   final bool autofocus;
-  final int days;
   final Future<void> Function(ContentItem, EpgEntry) onCatchup;
 
   @override
@@ -276,7 +250,7 @@ class _GuideChannelRow extends ConsumerWidget {
             child: FutureBuilder<List<EpgEntry>>(
               future: ref
                   .read(catalogueServiceProvider)
-                  .fetchEpg(channel, limit: 1000, includePast: true, days: channel.catchupAvailable && channel.catchupDays > 0 ? channel.catchupDays : days),
+                  .fetchEpg(channel, limit: 1000, includePast: true, days: channel.catchupDays > 0 ? channel.catchupDays : 7),
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(child: LinearProgressIndicator());
@@ -291,23 +265,15 @@ class _GuideChannelRow extends ConsumerWidget {
                   separatorBuilder: (_, _) => const SizedBox(width: 10),
                   itemBuilder: (context, index) {
                     final entry = entries[index];
-                    final playable = channel.catchupAvailable && entry.isPast;
+                    final playable =
+                        channel.catchupAvailable && entry.isPast;
                     return _ProgrammeCard(
                       entry: entry,
                       autofocus: autofocus && index == 0,
                       catchup: playable,
-                      onPressed: () async {
-                        if (playable) {
-                          unawaited(onCatchup(channel, entry));
-                          return;
-                        }
-                        try {
-                          final source = await ref.read(catalogueServiceProvider).resolvePlayback(channel);
-                          if (context.mounted) {
-                            await context.push('/player', extra: PlayerArguments(source: source, item: channel));
-                          }
-                        } catch (_) {}
-                      },
+                      onPressed: playable
+                          ? () => unawaited(onCatchup(channel, entry))
+                          : null,
                     );
                   },
                 );

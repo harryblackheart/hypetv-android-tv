@@ -35,6 +35,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final _favouriteFocus = FocusNode(debugLabel: 'player-favourite');
   final _tracksFocus = FocusNode(debugLabel: 'player-tracks');
   final _guideFocus = FocusNode(debugLabel: 'player-guide');
+  final _catchupFocus = FocusNode(debugLabel: 'player-catchup');
   final _playFocus = FocusNode(debugLabel: 'player-play');
   final _rewindFocus = FocusNode(debugLabel: 'player-rewind');
   final _forwardFocus = FocusNode(debugLabel: 'player-forward');
@@ -71,7 +72,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _subscriptions.addAll([
       _player.stream.playing.listen((value) {
         if (mounted) {
-          setState(() => _playing = value);
+          setState(() {
+            _playing = value;
+            if (value) _error = null;
+          });
         }
       }),
       _player.stream.buffering.listen((value) {
@@ -117,6 +121,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _initialize() async {
+    if (mounted) {
+      setState(() {
+        _error = null;
+        _buffering = true;
+      });
+    }
     try {
       await _player.open(
         Media(
@@ -150,6 +160,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _favouriteFocus,
         _tracksFocus,
         _guideFocus,
+        _catchupFocus,
         _playFocus,
         _rewindFocus,
         _forwardFocus,
@@ -292,13 +303,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Close'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              unawaited(_openSystemPlayer());
-            },
-            child: const Text('System player'),
           ),
         ],
       ),
@@ -514,6 +518,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _favouriteFocus,
       _tracksFocus,
       _guideFocus,
+      _catchupFocus,
       _playFocus,
       _rewindFocus,
       _forwardFocus,
@@ -578,8 +583,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           const SizedBox(height: 16),
                           FilledButton(
                             autofocus: true,
-                            onPressed: _openSystemPlayer,
-                            child: const Text('Try system player'),
+                            onPressed: () => unawaited(_initialize()),
+                            child: const Text('Try again'),
                           ),
                         ],
                       ),
@@ -648,7 +653,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       onFocusChange: _onControlFocus,
                                       onArrowLeft: () => _backFocus.requestFocus(),
                                       onArrowRight: () => (_isLive
-                                              ? _guideFocus
+                                              ? (item.catchupAvailable ? _catchupFocus : _guideFocus)
                                               : _tracksFocus)
                                           .requestFocus(),
                                       onArrowDown: () => _playFocus.requestFocus(),
@@ -664,15 +669,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                             _favouriteFocus.requestFocus(),
                                         onArrowDown: () => _playFocus.requestFocus(),
                                       ),
+                                    if (_isLive && item.catchupAvailable)
+                                      _PlayerIconButton(
+                                        focusNode: _catchupFocus,
+                                        tooltip: 'Catch-up',
+                                        icon: Icons.history_rounded,
+                                        onPressed: () => context.push('/catchup'),
+                                        onFocusChange: _onControlFocus,
+                                        onArrowLeft: () => _favouriteFocus.requestFocus(),
+                                        onArrowRight: () => _guideFocus.requestFocus(),
+                                        onArrowDown: () => _playFocus.requestFocus(),
+                                      ),
                                     if (_isLive)
                                       _PlayerIconButton(
                                         focusNode: _guideFocus,
                                         tooltip: 'TV Guide',
                                         icon: Icons.live_tv_rounded,
-                                        onPressed: _showGuide,
+                                        onPressed: () => context.push('/guide', extra: item),
                                         onFocusChange: _onControlFocus,
                                         onArrowLeft: () =>
-                                            _favouriteFocus.requestFocus(),
+                                            (item.catchupAvailable ? _catchupFocus : _favouriteFocus).requestFocus(),
                                         onArrowDown: () => _playFocus.requestFocus(),
                                       ),
                                     if (_isLive)
