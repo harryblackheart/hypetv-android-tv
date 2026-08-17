@@ -203,13 +203,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (title != null && title.isNotEmpty) title,
       if (language != null && language.isNotEmpty) language.toUpperCase(),
       if (codec != null && codec.isNotEmpty) codec.toUpperCase(),
-    ].join(' · ').trim().isEmpty
+    ].join(' Â· ').trim().isEmpty
         ? fallback
         : [
             if (title != null && title.isNotEmpty) title,
             if (language != null && language.isNotEmpty) language.toUpperCase(),
             if (codec != null && codec.isNotEmpty) codec.toUpperCase(),
-          ].join(' · ');
+          ].join(' Â· ');
   }
 
   Future<void> _showTracks() async {
@@ -240,7 +240,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${_track.audio.id == audios[index].id ? '✓ ' : ''}${_trackLabel(audios[index], 'Audio ${index + 1}')}',
+                        '${_track.audio.id == audios[index].id ? 'âœ“ ' : ''}${_trackLabel(audios[index], 'Audio ${index + 1}')}',
                       ),
                     ),
                   ),
@@ -258,7 +258,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${_track.subtitle.id == subtitles[index].id ? '✓ ' : ''}${subtitles[index].id == 'no' ? 'Off' : _trackLabel(subtitles[index], 'Subtitle ${index + 1}')}',
+                        '${_track.subtitle.id == subtitles[index].id ? 'âœ“ ' : ''}${subtitles[index].id == 'no' ? 'Off' : _trackLabel(subtitles[index], 'Subtitle ${index + 1}')}',
                       ),
                     ),
                   ),
@@ -274,28 +274,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _playCatchup(EpgEntry entry) async {
-    try {
-      final source = await ref
-          .read(catalogueServiceProvider)
-          .resolveCatchup(widget.arguments.item, entry);
-      if (!mounted) {
-        return;
-      }
-      await context.push(
-        '/player',
-        extra: PlayerArguments(source: source, item: widget.arguments.item),
-      );
-    } on CatalogueException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(error.userMessage)));
-    }
   }
 
   Future<void> _stopAndPop() async {
@@ -737,12 +715,6 @@ class _PlayerIconButtonState extends State<_PlayerIconButton> {
       ),
     );
   }
-}
-
-String _formatClock(DateTime value) {
-  final hour = value.hour.toString().padLeft(2, '0');
-  final minute = value.minute.toString().padLeft(2, '0');
-  return '$hour:$minute';
 }
 
 String _formatDuration(Duration value) {
