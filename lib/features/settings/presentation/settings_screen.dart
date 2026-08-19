@@ -261,6 +261,8 @@ class SettingsScreen extends ConsumerWidget {
                           const SizedBox(height: 34),
                         ],
                         const _SectionTitle('DEVICE'),
+                        const _DisplayModeTile(),
+                        const SizedBox(height: 16),
                         _SettingsTile(
                           icon: Icons.high_quality_rounded,
                           title: 'Display',
