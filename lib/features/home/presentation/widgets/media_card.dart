@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
@@ -12,12 +13,14 @@ class MediaCard extends ConsumerStatefulWidget {
     required this.onPressed,
     super.key,
     this.autofocus = false,
+    this.onArrowUp,
   });
 
   final ContentItem item;
   final double width;
   final VoidCallback onPressed;
   final bool autofocus;
+  final VoidCallback? onArrowUp;
 
   @override
   ConsumerState<MediaCard> createState() => _MediaCardState();
@@ -74,7 +77,15 @@ class _MediaCardState extends ConsumerState<MediaCard> {
         curve: Curves.easeOut,
         child: Focus(
           autofocus: widget.autofocus,
-          onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
+          onKeyEvent: (_, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.arrowUp &&
+                widget.onArrowUp != null) {
+              widget.onArrowUp!();
+              return KeyEventResult.handled;
+            }
+            return activateOnTvKey(event, widget.onPressed);
+          },
           onFocusChange: _handleFocus,
           child: InkWell(
             onTap: widget.onPressed,
