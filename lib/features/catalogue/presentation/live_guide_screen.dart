@@ -31,7 +31,7 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    unawaited(_load(categoryId: widget.initialChannel?.categoryId));
   }
 
   Future<void> _load({String? categoryId}) async {
@@ -276,7 +276,7 @@ class _GuideChannelRow extends ConsumerWidget {
             child: FutureBuilder<List<EpgEntry>>(
               future: ref
                   .read(catalogueServiceProvider)
-                  .fetchEpg(channel, limit: 1000, includePast: true, days: channel.catchupAvailable && channel.catchupDays > 0 ? channel.catchupDays : days),
+                  .fetchEpg(channel, limit: 2000, includePast: true, days: days),
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(child: LinearProgressIndicator());
@@ -350,7 +350,20 @@ class _ProgrammeCardState extends State<_ProgrammeCard> {
       autofocus: widget.autofocus,
       descendantsAreFocusable: false,
       canRequestFocus: true,
-      onFocusChange: (value) => setState(() => _focused = value),
+      onFocusChange: (value) {
+        setState(() => _focused = value);
+        if (value) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Scrollable.ensureVisible(
+                context,
+                alignment: .45,
+                duration: const Duration(milliseconds: 180),
+              );
+            }
+          });
+        }
+      },
       onKeyEvent: (_, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||

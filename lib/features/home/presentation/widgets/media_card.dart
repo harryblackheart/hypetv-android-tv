@@ -1,30 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
+import 'package:hypetv/services/watch_history_service.dart';
 import 'package:hypetv/widgets/tv_action.dart';
 
-class MediaCard extends StatefulWidget {
+class MediaCard extends ConsumerStatefulWidget {
   const MediaCard({
     required this.item,
     required this.width,
     required this.onPressed,
     super.key,
     this.autofocus = false,
-    this.onArrowUp,
   });
 
   final ContentItem item;
   final double width;
   final VoidCallback onPressed;
   final bool autofocus;
-  final VoidCallback? onArrowUp;
 
   @override
-  State<MediaCard> createState() => _MediaCardState();
+  ConsumerState<MediaCard> createState() => _MediaCardState();
 }
 
-class _MediaCardState extends State<MediaCard> {
+class _MediaCardState extends ConsumerState<MediaCard> {
   bool _focused = false;
 
   void _handleFocus(bool focused) {
@@ -42,8 +41,30 @@ class _MediaCardState extends State<MediaCard> {
     }
   }
 
+  double? _historyProgress() {
+    final direct = widget.item.progress;
+    if (direct != null) {
+      return direct;
+    }
+    final history = ref.watch(watchHistoryProvider).value ?? const <ContentItem>[];
+    final id = widget.item.id;
+    final upstreamId = widget.item.upstreamId;
+    for (final entry in history) {
+      if (id != null && entry.id == id) {
+        return entry.progress;
+      }
+      if (upstreamId != null &&
+          entry.type == widget.item.type &&
+          entry.upstreamId == upstreamId) {
+        return entry.progress;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final watchProgress = _historyProgress();
     return Semantics(
       button: true,
       label: '${widget.item.title}, ${widget.item.subtitle}',
@@ -53,16 +74,7 @@ class _MediaCardState extends State<MediaCard> {
         curve: Curves.easeOut,
         child: Focus(
           autofocus: widget.autofocus,
-          descendantsAreFocusable: false,
-          onKeyEvent: (_, event) {
-            if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
-                event.logicalKey == LogicalKeyboardKey.arrowUp &&
-                widget.onArrowUp != null) {
-              widget.onArrowUp!();
-              return KeyEventResult.handled;
-            }
-            return activateOnTvKey(event, widget.onPressed);
-          },
+          onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
           onFocusChange: _handleFocus,
           child: InkWell(
             onTap: widget.onPressed,
@@ -93,18 +105,11 @@ class _MediaCardState extends State<MediaCard> {
                 fit: StackFit.expand,
                 children: [
                   if (widget.item.imageUrl.isNotEmpty)
-                    Padding(
-                      padding: widget.item.type == 'live'
-                          ? const EdgeInsets.fromLTRB(18, 14, 18, 58)
-                          : EdgeInsets.zero,
-                      child: Image.network(
-                        widget.item.imageUrl,
-                        fit: widget.item.type == 'live'
-                            ? BoxFit.contain
-                            : BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const _ArtworkFallback(),
-                      ),
+                    Image.network(
+                      widget.item.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const _ArtworkFallback(),
                     )
                   else
                     const _ArtworkFallback(),
@@ -122,24 +127,6 @@ class _MediaCardState extends State<MediaCard> {
                       ),
                     ),
                   ),
-                  if (widget.item.type == 'live' &&
-                      widget.item.catchupAvailable)
-                    Positioned(
-                      right: 10,
-                      top: 10,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.black87,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Icon(
-                          Icons.history_rounded,
-                          size: 20,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
                   if (widget.item.badge case final badge?)
                     Positioned(
                       left: 10,
@@ -191,7 +178,27 @@ class _MediaCardState extends State<MediaCard> {
                         ),
                       ),
                     ),
-                  if (widget.item.progress case final progress?)
+                  if (widget.item.type == 'live' &&
+                      widget.item.catchupAvailable)
+                    const Positioned(
+                      top: 8,
+                      right: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.history_rounded,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (watchProgress case final progress?)
                     Positioned(
                       left: 0,
                       right: 0,

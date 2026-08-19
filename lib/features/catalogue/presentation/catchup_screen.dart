@@ -145,7 +145,7 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
                     child: Text('The TV guide could not be loaded.'),
                   ),
                 (false, null, true) => const Center(
-                    child: Text('No live channels are available in this group.'),
+                    child: Text('No catch-up channels are available in this group.'),
                   ),
                 _ => ListView.separated(
                     padding: const EdgeInsets.fromLTRB(48, 18, 48, 50),
@@ -250,7 +250,7 @@ class _GuideChannelRow extends ConsumerWidget {
             child: FutureBuilder<List<EpgEntry>>(
               future: ref
                   .read(catalogueServiceProvider)
-                  .fetchEpg(channel, limit: 1000, includePast: true, days: channel.catchupDays > 0 ? channel.catchupDays : 7),
+                  .fetchEpg(channel, limit: 2000, includePast: true, days: channel.catchupDays > 0 ? channel.catchupDays : 7),
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(child: LinearProgressIndicator());
@@ -316,7 +316,20 @@ class _ProgrammeCardState extends State<_ProgrammeCard> {
       autofocus: widget.autofocus,
       descendantsAreFocusable: false,
       canRequestFocus: true,
-      onFocusChange: (value) => setState(() => _focused = value),
+      onFocusChange: (value) {
+        setState(() => _focused = value);
+        if (value) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Scrollable.ensureVisible(
+                context,
+                alignment: .45,
+                duration: const Duration(milliseconds: 180),
+              );
+            }
+          });
+        }
+      },
       onKeyEvent: (_, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||

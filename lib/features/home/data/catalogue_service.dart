@@ -109,6 +109,7 @@ class CatalogueException implements Exception {
     'DEVICE_TOKEN_REJECTED' => 'This device needs to be activated again.',
     'CATCHUP_UNAVAILABLE' =>
       'Catch-up is not available for this programme on the HypeTV server.',
+    'CATCHUP_UNAVAILABLE' => 'Catch-up is not available for this programme.',
     _ => 'HypeTV could not load the catalogue. Please try again.',
   };
 
@@ -252,7 +253,8 @@ class CatalogueService {
       query: {
         'limit': '$limit',
         if (includePast) 'include_past': '1',
-        if (includePast) 'days': '$days',
+        if (includePast) 'past_days': '$days',
+        'future_days': '$days',
       },
     );
     final values = _listAt(body, const [
