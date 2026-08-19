@@ -37,10 +37,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final _playFocus = FocusNode(debugLabel: 'player-play');
   final _rewindFocus = FocusNode(debugLabel: 'player-rewind');
   final _forwardFocus = FocusNode(debugLabel: 'player-forward');
+  final _pipFocus = FocusNode(debugLabel: 'player-pip');
+  final _aspectFocus = FocusNode(debugLabel: 'player-aspect');
+  final _infoFocus = FocusNode(debugLabel: 'player-info');
+  final _advancedTracksFocus = FocusNode(debugLabel: 'player-advanced-tracks');
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   Timer? _controlsTimer;
+  Timer? _errorTimer;
   Object? _error;
   var _controlsVisible = true;
+  var _advancedVisible = false;
   var _exiting = false;
   var _playing = false;
   var _buffering = true;
@@ -49,6 +55,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   DateTime _lastPositionUiRefresh = DateTime.fromMillisecondsSinceEpoch(0);
   Tracks _tracks = const Tracks();
   Track _track = const Track();
+  BoxFit _videoFit = BoxFit.contain;
 
   bool get _isLive => widget.arguments.item.type == 'live';
 
@@ -72,7 +79,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (mounted) {
           setState(() {
             _playing = value;
-            if (value) _error = null;
+            if (value) {
+              _errorTimer?.cancel();
+              _error = null;
+            }
           });
         }
       }),
@@ -110,8 +120,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }
       }),
       _player.stream.error.listen((value) {
-        if (value.isNotEmpty && mounted) {
-          setState(() => _error = value);
+        if (value.isNotEmpty) {
+          _schedulePlaybackError(value);
         }
       }),
     ]);
@@ -119,6 +129,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _initialize() async {
+    _errorTimer?.cancel();
     if (mounted) {
       setState(() {
         _error = null;
@@ -133,11 +144,51 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ),
         play: true,
       );
+      await _applyResumePosition();
       _scheduleControls();
     } catch (error) {
-      if (mounted) {
+      _schedulePlaybackError(error);
+    }
+  }
+
+  void _schedulePlaybackError(Object error) {
+    _errorTimer?.cancel();
+    _errorTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && !_playing) {
         setState(() => _error = error);
       }
+    });
+  }
+
+  Future<void> _applyResumePosition() async {
+    if (_isLive) {
+      return;
+    }
+    double? progress = widget.arguments.item.progress;
+    if (progress == null) {
+      final history = await ref.read(watchHistoryServiceProvider).load();
+      final id = widget.arguments.item.id;
+      for (final item in history) {
+        if (id != null && item.id == id) {
+          progress = item.progress;
+          break;
+        }
+      }
+    }
+    if (progress == null || progress < .02 || progress >= .95) {
+      return;
+    }
+    for (var attempt = 0; attempt < 12; attempt++) {
+      final duration = _player.state.duration;
+      if (duration > Duration.zero) {
+        await _player.seek(
+          Duration(
+            milliseconds: (duration.inMilliseconds * progress).round(),
+          ),
+        );
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
     }
   }
 
@@ -162,6 +213,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _playFocus,
         _rewindFocus,
         _forwardFocus,
+        _pipFocus,
+        _aspectFocus,
+        _infoFocus,
+        _advancedTracksFocus,
       ].any((node) => node.hasFocus);
 
   Future<void> _togglePlayback() async {
@@ -202,13 +257,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (title != null && title.isNotEmpty) title,
       if (language != null && language.isNotEmpty) language.toUpperCase(),
       if (codec != null && codec.isNotEmpty) codec.toUpperCase(),
-    ].join(' Â· ').trim().isEmpty
+    ].join(' · ').trim().isEmpty
         ? fallback
         : [
             if (title != null && title.isNotEmpty) title,
             if (language != null && language.isNotEmpty) language.toUpperCase(),
             if (codec != null && codec.isNotEmpty) codec.toUpperCase(),
-          ].join(' Â· ');
+          ].join(' · ');
   }
 
   Future<void> _showTracks() async {
@@ -239,7 +294,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${_track.audio.id == audios[index].id ? 'âœ“ ' : ''}${_trackLabel(audios[index], 'Audio ${index + 1}')}',
+                        '${_track.audio.id == audios[index].id ? '✓ ' : ''}${_trackLabel(audios[index], 'Audio ${index + 1}')}',
                       ),
                     ),
                   ),
@@ -257,7 +312,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${_track.subtitle.id == subtitles[index].id ? 'âœ“ ' : ''}${subtitles[index].id == 'no' ? 'Off' : _trackLabel(subtitles[index], 'Subtitle ${index + 1}')}',
+                        '${_track.subtitle.id == subtitles[index].id ? '✓ ' : ''}${subtitles[index].id == 'no' ? 'Off' : _trackLabel(subtitles[index], 'Subtitle ${index + 1}')}',
                       ),
                     ),
                   ),
@@ -273,6 +328,76 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ],
       ),
     );
+    if (mounted) {
+      setState(() => _advancedVisible = false);
+      _surfaceFocus.requestFocus();
+      _scheduleControls();
+    }
+  }
+
+  void _showAdvancedControls() {
+    _controlsTimer?.cancel();
+    setState(() {
+      _controlsVisible = true;
+      _advancedVisible = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _pipFocus.requestFocus();
+      }
+    });
+  }
+
+  void _cycleVideoFit() {
+    setState(() {
+      _videoFit = switch (_videoFit) {
+        BoxFit.contain => BoxFit.cover,
+        BoxFit.cover => BoxFit.fill,
+        _ => BoxFit.contain,
+      };
+    });
+    _scheduleControls();
+  }
+
+  Future<void> _enterPictureInPicture() async {
+    try {
+      await const MethodChannel('hypetv/player').invokeMethod<void>('enterPip');
+    } on PlatformException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message ?? 'Picture-in-picture is unavailable on this device.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showStreamInfo() async {
+    _controlsTimer?.cancel();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Playback information'),
+        content: Text(
+          [
+            if (_duration > Duration.zero) 'Duration: ${_formatDuration(_duration)}',
+            'Audio tracks: ${_tracks.audio.where((track) => track.id != 'no').length}',
+            'Subtitle tracks: ${_tracks.subtitle.where((track) => track.id != 'no').length}',
+            'Video mode: ${_videoFit.name}',
+          ].join('\n'),
+        ),
+        actions: [
+          FilledButton(
+            autofocus: true,
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+    if (mounted) {
+      _surfaceFocus.requestFocus();
+      _scheduleControls();
+    }
   }
 
   Future<void> _stopAndPop() async {
@@ -308,6 +433,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _favouriteFocus.requestFocus();
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _showAdvancedControls();
+      return KeyEventResult.handled;
+    }
     if (!_isLive && key == LogicalKeyboardKey.arrowLeft) {
       unawaited(_seek(const Duration(seconds: -30)));
       return KeyEventResult.handled;
@@ -319,8 +448,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (event is KeyDownEvent &&
         (key == LogicalKeyboardKey.select ||
             key == LogicalKeyboardKey.enter ||
-            key == LogicalKeyboardKey.space ||
-            key == LogicalKeyboardKey.mediaPlayPause)) {
+            key == LogicalKeyboardKey.space)) {
+      setState(() {
+        _controlsVisible = !_controlsVisible;
+        if (!_controlsVisible) {
+          _advancedVisible = false;
+        }
+      });
+      if (_controlsVisible) {
+        _playFocus.requestFocus();
+        _scheduleControls();
+      } else {
+        _surfaceFocus.requestFocus();
+      }
+      return KeyEventResult.handled;
+    }
+    if (event is KeyDownEvent && key == LogicalKeyboardKey.mediaPlayPause) {
       unawaited(_togglePlayback());
       return KeyEventResult.handled;
     }
@@ -342,6 +485,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _controlsTimer?.cancel();
+    _errorTimer?.cancel();
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());
     }
@@ -364,6 +508,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _playFocus,
       _rewindFocus,
       _forwardFocus,
+      _pipFocus,
+      _aspectFocus,
+      _infoFocus,
+      _advancedTracksFocus,
     ]) {
       node.dispose();
     }
@@ -409,7 +557,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   Video(
                     controller: _videoController,
                     controls: NoVideoControls,
-                    fit: BoxFit.contain,
+                    fit: _videoFit,
                   ),
                   if (_buffering && _error == null)
                     const Center(child: CircularProgressIndicator()),
@@ -423,10 +571,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             style: TextStyle(fontSize: 20),
                           ),
                           const SizedBox(height: 16),
-                          FilledButton(
+                          FilledButton.icon(
                             autofocus: true,
-                            onPressed: () => unawaited(_initialize()),
-                            child: const Text('Try again'),
+                            onPressed: () {
+                              _surfaceFocus.requestFocus();
+                              unawaited(_initialize());
+                            },
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('Try again'),
                           ),
                         ],
                       ),
@@ -557,6 +709,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       onPressed: _togglePlayback,
                                       onFocusChange: _onControlFocus,
                                       onArrowUp: () => _favouriteFocus.requestFocus(),
+                                      onArrowDown: _showAdvancedControls,
                                     ),
                                     if (!_isLive) ...[
                                       const SizedBox(width: 12),
@@ -589,6 +742,59 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     ],
                                   ],
                                 ),
+                                if (_advancedVisible) ...[
+                                  const SizedBox(height: 14),
+                                  Row(
+                                    children: [
+                                      _PlayerIconButton(
+                                        focusNode: _pipFocus,
+                                        tooltip: 'Picture in picture',
+                                        icon: Icons.picture_in_picture_alt_rounded,
+                                        onPressed: () => unawaited(_enterPictureInPicture()),
+                                        onFocusChange: _onControlFocus,
+                                        onArrowRight: () => _aspectFocus.requestFocus(),
+                                        onArrowUp: () => _playFocus.requestFocus(),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      _PlayerIconButton(
+                                        focusNode: _aspectFocus,
+                                        tooltip: 'Picture size',
+                                        icon: Icons.aspect_ratio_rounded,
+                                        onPressed: _cycleVideoFit,
+                                        onFocusChange: _onControlFocus,
+                                        onArrowLeft: () => _pipFocus.requestFocus(),
+                                        onArrowRight: () => _advancedTracksFocus.requestFocus(),
+                                        onArrowUp: () => _playFocus.requestFocus(),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      _PlayerIconButton(
+                                        focusNode: _advancedTracksFocus,
+                                        tooltip: 'Audio & subtitles',
+                                        icon: Icons.subtitles_rounded,
+                                        onPressed: _showTracks,
+                                        onFocusChange: _onControlFocus,
+                                        onArrowLeft: () => _aspectFocus.requestFocus(),
+                                        onArrowRight: () => _infoFocus.requestFocus(),
+                                        onArrowUp: () => _playFocus.requestFocus(),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      _PlayerIconButton(
+                                        focusNode: _infoFocus,
+                                        tooltip: 'Playback information',
+                                        icon: Icons.info_outline_rounded,
+                                        onPressed: () => unawaited(_showStreamInfo()),
+                                        onFocusChange: _onControlFocus,
+                                        onArrowLeft: () => _advancedTracksFocus.requestFocus(),
+                                        onArrowUp: () => _playFocus.requestFocus(),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      const Text(
+                                        'PIP   ·   Picture   ·   Audio & subtitles   ·   Info',
+                                        style: TextStyle(color: AppColors.muted, fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                                 if (!_isLive && _duration > Duration.zero) ...[
                                   const SizedBox(height: 8),
                                   Slider(

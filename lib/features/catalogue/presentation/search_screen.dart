@@ -53,12 +53,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _results = const [];
     });
     try {
-      final results = await ref
-          .read(catalogueServiceProvider)
-          .search(query, type: _type);
-      if (mounted) setState(() => _results = results);
+      final service = ref.read(catalogueServiceProvider);
+      List<ContentItem> results;
+      try {
+        results = await service.search(query, type: _type);
+      } on CatalogueException catch (error) {
+        if (error.isAuthenticationRejected) {
+          rethrow;
+        }
+        // Keep search useful when the dedicated search endpoint is briefly
+        // unavailable. The Home catalogue is already cached upstream and is
+        // a safe, fast fallback for titles/channels currently shown in HypeTV.
+        final home = await service.fetchHome();
+        final needle = query.toLowerCase();
+        results = home
+            .expand((shelf) => shelf.items)
+            .where((item) => catalogueTypeOf(item) == _type)
+            .where((item) =>
+                item.title.toLowerCase().contains(needle) ||
+                item.subtitle.toLowerCase().contains(needle) ||
+                (item.description?.toLowerCase().contains(needle) ?? false))
+            .toList(growable: false);
+      }
+      if (mounted) {
+        setState(() => _results = results);
+      }
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       if (error is CatalogueException && error.isAuthenticationRejected) {
         unawaited(rejectDeviceToken(context, ref));
       }
@@ -179,7 +202,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   message: 'Try another title, channel or keyword.',
                   icon: Icons.search_off_rounded,
                 ),
-                (false, null, false, _) => const CatalogueStateView(
+                (false, null, true, false) => const CatalogueStateView(
                   title: 'Find something brilliant',
                   message: 'Search the selected HypeTV section.',
                   icon: Icons.search_rounded,

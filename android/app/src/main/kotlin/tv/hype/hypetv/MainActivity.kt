@@ -2,6 +2,8 @@ package tv.hype.hypetv
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.app.PictureInPictureParams
+import android.util.Rational
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -21,6 +23,29 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hypetv/player")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "enterPip" -> enterPip(result)
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun enterPip(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            result.error("PIP_UNAVAILABLE", "Picture-in-picture requires Android 8 or newer.", null)
+            return
+        }
+        try {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .build()
+            enterPictureInPictureMode(params)
+            result.success(null)
+        } catch (error: Exception) {
+            result.error("PIP_FAILED", error.message ?: "Picture-in-picture could not start.", null)
+        }
     }
 
     private fun installApk(path: String?, result: MethodChannel.Result) {

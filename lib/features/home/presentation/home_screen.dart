@@ -400,7 +400,7 @@ String? _browseRouteForShelf(ContentShelf shelf) {
   return null;
 }
 
-class _ContentRail extends ConsumerWidget {
+class _ContentRail extends ConsumerStatefulWidget {
   const _ContentRail({
     required this.shelf,
     required this.cardWidth,
@@ -414,15 +414,30 @@ class _ContentRail extends ConsumerWidget {
   final bool autofocus;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cardHeight = cardWidth * .58 + 54;
+  ConsumerState<_ContentRail> createState() => _ContentRailState();
+}
+
+class _ContentRailState extends ConsumerState<_ContentRail> {
+  final _browseAllFocus = FocusNode(debugLabel: 'home-browse-all');
+
+  @override
+  void dispose() {
+    _browseAllFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shelf = widget.shelf;
+    final cardHeight = widget.cardWidth * .58 + 54;
+    final route = _browseRouteForShelf(shelf);
     return Padding(
       padding: const EdgeInsets.only(bottom: 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+            padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
             child: Row(
               children: [
                 Expanded(
@@ -431,8 +446,9 @@ class _ContentRail extends ConsumerWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
-                if (_browseRouteForShelf(shelf) case final route?)
+                if (route != null)
                   TextButton.icon(
+                    focusNode: _browseAllFocus,
                     onPressed: () => context.push(route),
                     icon: const Icon(Icons.grid_view_rounded, size: 20),
                     label: const Text('Browse all'),
@@ -447,15 +463,16 @@ class _ContentRail extends ConsumerWidget {
               scrollDirection: Axis.horizontal,
               clipBehavior: Clip.none,
               padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
+                horizontal: widget.horizontalPadding,
                 vertical: cardHeight * .04,
               ),
               itemCount: shelf.items.length,
               separatorBuilder: (_, _) => const SizedBox(width: 18),
               itemBuilder: (context, index) => MediaCard(
                 item: shelf.items[index],
-                width: cardWidth,
-                autofocus: autofocus && index == 0,
+                width: widget.cardWidth,
+                autofocus: widget.autofocus && index == 0,
+                onArrowUp: route == null ? null : _browseAllFocus.requestFocus,
                 onPressed: () => openContent(context, ref, shelf.items[index]),
               ),
             ),
