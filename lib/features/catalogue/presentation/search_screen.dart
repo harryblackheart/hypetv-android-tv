@@ -9,6 +9,7 @@ import 'package:hypetv/features/catalogue/presentation/content_actions.dart';
 import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
+import 'package:hypetv/services/content_preferences_service.dart';
 import 'package:hypetv/widgets/tv_action.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -61,19 +62,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (error.isAuthenticationRejected) {
           rethrow;
         }
-        // Keep search useful when the dedicated search endpoint is briefly
-        // unavailable. The Home catalogue is already cached upstream and is
-        // a safe, fast fallback for titles/channels currently shown in HypeTV.
-        final home = await service.fetchHome();
-        final needle = query.toLowerCase();
-        results = home
-            .expand((shelf) => shelf.items)
-            .where((item) => catalogueTypeOf(item) == _type)
-            .where((item) =>
-                item.title.toLowerCase().contains(needle) ||
-                item.subtitle.toLowerCase().contains(needle) ||
-                (item.description?.toLowerCase().contains(needle) ?? false))
-            .toList(growable: false);
+        results = const [];
+      }
+
+      // Some provider search endpoints only expose a small Home subset.
+      // If the dedicated endpoint gives us nothing, search the full selected
+      // catalogue by category instead of searching the 8/12 Home cards.
+      if (results.isEmpty) {
+        results = await _searchFullCatalogue(service, query);
       }
       if (mounted) {
         setState(() => _results = results);
@@ -91,6 +87,63 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
+  Future<List<ContentItem>> _searchFullCatalogue(
+    CatalogueService service,
+    String query,
+  ) async {
+    final needle = query.toLowerCase();
+    final matches = <ContentItem>[];
+    final seen = <String>{};
+
+    bool matchesQuery(ContentItem item) {
+      return item.title.toLowerCase().contains(needle) ||
+          item.subtitle.toLowerCase().contains(needle) ||
+          (item.description?.toLowerCase().contains(needle) ?? false);
+    }
+
+    void addMatches(Iterable<ContentItem> items) {
+      for (final item in items) {
+        if (!matchesQuery(item)) {
+          continue;
+        }
+        final key = '${item.type}:${item.upstreamId ?? item.id ?? item.title}';
+        if (seen.add(key)) {
+          matches.add(item);
+        }
+        if (matches.length >= 100) {
+          return;
+        }
+      }
+    }
+
+    if (_type == CatalogueType.live) {
+      addMatches(await service.fetchItems(CatalogueType.live));
+      return matches;
+    }
+
+    final categories = await service.fetchCategories(_type);
+    for (final category in categories) {
+      var page = 1;
+      while (matches.length < 100) {
+        final items = await service.fetchItems(
+          _type,
+          categoryId: category.id,
+          page: page,
+          limit: 1000,
+        );
+        addMatches(items);
+        if (items.length < 1000) {
+          break;
+        }
+        page++;
+      }
+      if (matches.length >= 100) {
+        break;
+      }
+    }
+    return matches;
+  }
+
   void _changeType(CatalogueType type) {
     if (_type == type) return;
     setState(() {
@@ -106,73 +159,100 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final message = _error is CatalogueException
         ? (_error! as CatalogueException).userMessage
         : 'HypeTV could not complete this search.';
+    final prefs = ref.watch(contentPreferencesProvider).value ??
+        const ContentPreferences();
+    final size = MediaQuery.sizeOf(context);
+    final mobileLayout = prefs.displayMode == DisplayMode.mobile ||
+        (prefs.displayMode == DisplayMode.automatic && size.width < 700);
+    final sidePadding = mobileLayout ? 16.0 : 54.0;
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(54, 30, 54, 12),
+              padding: EdgeInsets.fromLTRB(
+                sidePadding, mobileLayout ? 14 : 30, sidePadding, 12),
               child: Row(
                 children: [
                   IconButton.filledTonal(
                     onPressed: context.pop,
                     icon: const Icon(Icons.arrow_back_rounded),
                   ),
-                  const SizedBox(width: 24),
+                  SizedBox(width: mobileLayout ? 10 : 24),
                   Expanded(
                     child: TextField(
                       controller: _controller,
                       autofocus: true,
                       onSubmitted: (_) => _search(),
                       textInputAction: TextInputAction.search,
-                      style: const TextStyle(fontSize: 22),
+                      style: TextStyle(fontSize: mobileLayout ? 18 : 22),
                       decoration: const InputDecoration(
                         hintText: 'Search HypeTV',
                         prefixIcon: Icon(Icons.search_rounded),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 18),
+                  SizedBox(width: mobileLayout ? 8 : 18),
                   FilledButton(
                     onPressed: _loading ? null : _search,
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 16,
+                        horizontal: mobileLayout ? 12 : 22,
+                        vertical: mobileLayout ? 12 : 16,
                       ),
-                      child: Text('Search'),
+                      child: const Text('Search'),
                     ),
                   ),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(132, 0, 54, 12),
-              child: Row(
-                children: [
-                  for (final type in CatalogueType.values)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: ChoiceChip(
-                        label: Text(type.title),
-                        selected: _type == type,
-                        selectedColor: AppColors.red,
-                        onSelected: (_) => _changeType(type),
-                      ),
-                    ),
-                  const SizedBox(width: 12),
-                  const Flexible(
-                    child: Text(
-                      'Search one section at a time for faster TV results.',
-                      style: TextStyle(color: AppColors.muted),
-                    ),
-                  ),
-                ],
+              padding: EdgeInsets.fromLTRB(
+                mobileLayout ? sidePadding : 132,
+                0,
+                sidePadding,
+                12,
               ),
+              child: mobileLayout
+                  ? Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (final type in CatalogueType.values)
+                          ChoiceChip(
+                            label: Text(type.title),
+                            selected: _type == type,
+                            selectedColor: AppColors.red,
+                            onSelected: (_) => _changeType(type),
+                          ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        for (final type in CatalogueType.values)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: ChoiceChip(
+                              label: Text(type.title),
+                              selected: _type == type,
+                              selectedColor: AppColors.red,
+                              onSelected: (_) => _changeType(type),
+                            ),
+                          ),
+                        const SizedBox(width: 12),
+                        const Flexible(
+                          child: Text(
+                            'Search one section at a time for faster TV results.',
+                            style: TextStyle(color: AppColors.muted),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
-            if (MediaQuery.sizeOf(context).width >= 700)
+            if (!mobileLayout)
               Padding(
-                padding: const EdgeInsets.fromLTRB(132, 0, 54, 16),
+                padding: EdgeInsets.fromLTRB(132, 0, sidePadding, 16),
                 child: _TvSearchKeyboard(
                   onKey: (value) {
                     _controller.text += value;
@@ -209,17 +289,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
                 _ => LayoutBuilder(
                   builder: (context, constraints) {
-                    final columns = (constraints.maxWidth / 310).floor().clamp(
-                      3,
-                      7,
-                    );
+                    final columns = mobileLayout
+                        ? (constraints.maxWidth / 180).floor().clamp(2, 4)
+                        : (constraints.maxWidth / 310).floor().clamp(3, 7);
                     return GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(54, 20, 54, 60),
+                      padding: EdgeInsets.fromLTRB(
+                        sidePadding, 12, sidePadding, 40),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
                         crossAxisSpacing: 18,
                         mainAxisSpacing: 26,
-                        childAspectRatio: 1.35,
+                        childAspectRatio: mobileLayout ? .78 : 1.35,
                       ),
                       itemCount: _results.length,
                       itemBuilder: (context, index) => LayoutBuilder(

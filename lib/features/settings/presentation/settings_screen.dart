@@ -50,11 +50,18 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final code = ref.watch(activationCodeProvider);
     final update = ref.watch(updateCheckProvider);
+    final prefs = ref.watch(contentPreferencesProvider).value ?? const ContentPreferences();
+    final width = MediaQuery.sizeOf(context).width;
+    final mobileLayout = prefs.displayMode == DisplayMode.mobile ||
+        (prefs.displayMode == DisplayMode.automatic && width < 700);
 
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 72, vertical: 38),
+          padding: EdgeInsets.symmetric(
+            horizontal: mobileLayout ? 18 : 72,
+            vertical: mobileLayout ? 18 : 38,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -66,9 +73,9 @@ class SettingsScreen extends ConsumerWidget {
                     onPressed: context.pop,
                     icon: const Icon(Icons.arrow_back_rounded, size: 30),
                   ),
-                  const SizedBox(width: 24),
-                  const BrandLogo(fontSize: 34),
-                  const SizedBox(width: 28),
+                  SizedBox(width: mobileLayout ? 12 : 24),
+                  BrandLogo(fontSize: mobileLayout ? 26 : 34),
+                  SizedBox(width: mobileLayout ? 14 : 28),
                   Text(
                     'Settings',
                     style: Theme.of(context).textTheme.headlineLarge,
@@ -562,6 +569,57 @@ class _SettingsTileState extends State<_SettingsTile> {
   }
 }
 
+
+class _DisplayModeTile extends ConsumerWidget {
+  const _DisplayModeTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefs = ref.watch(contentPreferencesProvider).value ??
+        const ContentPreferences();
+    return _SettingsTile(
+      icon: Icons.devices_rounded,
+      title: 'Display mode',
+      subtitle: switch (prefs.displayMode) {
+        DisplayMode.automatic =>
+          'Automatic - use the best layout for this device',
+        DisplayMode.tv => 'TV mode - remote/D-pad optimised layout',
+        DisplayMode.mobile => 'Mobile mode - touch-friendly phone/tablet layout',
+      },
+      actionLabel: 'Change',
+      onPressed: () async {
+        final selected = await showDialog<DisplayMode>(
+          context: context,
+          builder: (dialogContext) => SimpleDialog(
+            title: const Text('Display mode'),
+            children: [
+              for (final mode in DisplayMode.values)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(dialogContext, mode),
+                  child: Row(
+                    children: [
+                      Icon(
+                        mode == prefs.displayMode
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(mode.label)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+        if (selected != null) {
+          await ref.read(contentPreferencesProvider.notifier).save(
+                prefs.copyWith(displayMode: selected),
+              );
+        }
+      },
+    );
+  }
+}
 
 class _PlaybackModeTile extends ConsumerWidget {
   const _PlaybackModeTile();

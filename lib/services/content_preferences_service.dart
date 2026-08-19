@@ -3,6 +3,19 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hypetv/services/secure_storage_service.dart';
 
+
+enum DisplayMode {
+  automatic,
+  tv,
+  mobile;
+
+  String get label => switch (this) {
+        automatic => 'Automatic',
+        tv => 'TV mode',
+        mobile => 'Mobile mode',
+      };
+}
+
 enum StartScreen {
   landing,
   live,
@@ -31,6 +44,7 @@ class ContentPreferences {
     this.showMovies = true,
     this.showSeries = true,
     this.hiddenLiveGroups = const <String>{},
+    this.displayMode = DisplayMode.automatic,
   });
 
   final StartScreen startScreen;
@@ -38,6 +52,7 @@ class ContentPreferences {
   final bool showMovies;
   final bool showSeries;
   final Set<String> hiddenLiveGroups;
+  final DisplayMode displayMode;
 
   ContentPreferences copyWith({
     StartScreen? startScreen,
@@ -45,12 +60,14 @@ class ContentPreferences {
     bool? showMovies,
     bool? showSeries,
     Set<String>? hiddenLiveGroups,
+    DisplayMode? displayMode,
   }) => ContentPreferences(
         startScreen: startScreen ?? this.startScreen,
         showLive: showLive ?? this.showLive,
         showMovies: showMovies ?? this.showMovies,
         showSeries: showSeries ?? this.showSeries,
         hiddenLiveGroups: hiddenLiveGroups ?? this.hiddenLiveGroups,
+        displayMode: displayMode ?? this.displayMode,
       );
 
   Map<String, dynamic> toJson() => {
@@ -59,10 +76,12 @@ class ContentPreferences {
         'show_movies': showMovies,
         'show_series': showSeries,
         'hidden_live_groups': hiddenLiveGroups.toList(),
+        'display_mode': displayMode.name,
       };
 
   factory ContentPreferences.fromJson(Map<String, dynamic> json) {
     final startName = json['start_screen']?.toString();
+    final displayName = json['display_mode']?.toString();
     return ContentPreferences(
       startScreen: StartScreen.values.firstWhere(
         (value) => value.name == startName,
@@ -76,6 +95,10 @@ class ContentPreferences {
               .map((value) => value.toString())
               .toSet()
           : const <String>{},
+      displayMode: DisplayMode.values.firstWhere(
+        (value) => value.name == displayName,
+        orElse: () => DisplayMode.automatic,
+      ),
     );
   }
 }
