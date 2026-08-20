@@ -35,6 +35,34 @@ class UpdateInfo {
   bool get updateAvailable => isVersionNewer(latestVersion, currentVersion);
 }
 
+
+enum UpdateStage {
+  connecting,
+  downloading,
+  verifying,
+  readyToInstall,
+}
+
+class UpdateDownloadProgress {
+  const UpdateDownloadProgress({
+    required this.stage,
+    required this.downloadedBytes,
+    required this.totalBytes,
+  });
+
+  final UpdateStage stage;
+  final int downloadedBytes;
+  final int? totalBytes;
+
+  double? get fraction {
+    final total = totalBytes;
+    if (total == null || total <= 0) {
+      return null;
+    }
+    return (downloadedBytes / total).clamp(0.0, 1.0);
+  }
+}
+
 class UpdateService {
   const UpdateService(this._client);
   final http.Client _client;
@@ -98,7 +126,10 @@ class UpdateService {
     );
   }
 
-  Future<void> downloadAndInstall(UpdateInfo info) async {
+  Future<void> downloadAndInstall(
+    UpdateInfo info, {
+    void Function(UpdateDownloadProgress progress)? onProgress,
+  }) async {
     final uri = info.apkUri;
     if (uri == null) {
       throw const ApiException(
@@ -106,12 +137,21 @@ class UpdateService {
       );
     }
 
+    onProgress?.call(
+      const UpdateDownloadProgress(
+        stage: UpdateStage.connecting,
+        downloadedBytes: 0,
+        totalBytes: null,
+      ),
+    );
+
+    final request = http.Request('GET', uri)
+      ..headers[HttpHeaders.userAgentHeader] = 'HypeTV-Android-TV';
+
     final response = await _client
-        .get(
-          uri,
-          headers: const {HttpHeaders.userAgentHeader: 'HypeTV-Android-TV'},
-        )
+        .send(request)
         .timeout(const Duration(minutes: 3));
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
         'The update could not be downloaded.',
@@ -121,7 +161,52 @@ class UpdateService {
 
     final directory = await getTemporaryDirectory();
     final file = File('${directory.path}/HypeTV-${info.latestVersion}.apk');
-    await file.writeAsBytes(response.bodyBytes, flush: true);
+    final sink = file.openWrite();
+
+    var downloaded = 0;
+    final total = response.contentLength;
+
+    try {
+      await for (final chunk in response.stream) {
+        sink.add(chunk);
+        downloaded += chunk.length;
+        onProgress?.call(
+          UpdateDownloadProgress(
+            stage: UpdateStage.downloading,
+            downloadedBytes: downloaded,
+            totalBytes: total,
+          ),
+        );
+      }
+      await sink.flush();
+    } finally {
+      await sink.close();
+    }
+
+    if (downloaded <= 0) {
+      throw const ApiException('The downloaded update file was empty.');
+    }
+
+    onProgress?.call(
+      UpdateDownloadProgress(
+        stage: UpdateStage.verifying,
+        downloadedBytes: downloaded,
+        totalBytes: total ?? downloaded,
+      ),
+    );
+
+    if (!await file.exists() || await file.length() != downloaded) {
+      throw const ApiException('The update download could not be verified.');
+    }
+
+    onProgress?.call(
+      UpdateDownloadProgress(
+        stage: UpdateStage.readyToInstall,
+        downloadedBytes: downloaded,
+        totalBytes: total ?? downloaded,
+      ),
+    );
+
     await _installer.invokeMethod<void>('installApk', {'path': file.path});
   }
 }

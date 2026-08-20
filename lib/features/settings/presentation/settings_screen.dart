@@ -142,31 +142,135 @@ class SettingsScreen extends ConsumerWidget {
                                 ref.invalidate(updateCheckProvider);
                                 return;
                               }
-                              try {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Downloading HypeTV update…'),
+
+                              final progress = ValueNotifier<UpdateDownloadProgress>(
+                                const UpdateDownloadProgress(
+                                  stage: UpdateStage.connecting,
+                                  downloadedBytes: 0,
+                                  totalBytes: null,
+                                ),
+                              );
+
+                              final dialogFuture = showDialog<void>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (dialogContext) => PopScope(
+                                  canPop: false,
+                                  child: AlertDialog(
+                                    title: Text(
+                                      'Updating HypeTV to ${info.latestVersion}',
+                                    ),
+                                    content: ValueListenableBuilder<UpdateDownloadProgress>(
+                                      valueListenable: progress,
+                                      builder: (context, value, _) {
+                                        final fraction = value.fraction;
+                                        final downloadedMb =
+                                            value.downloadedBytes / (1024 * 1024);
+                                        final total = value.totalBytes;
+                                        final totalText = total == null
+                                            ? ''
+                                            : ' / ${(total / (1024 * 1024)).toStringAsFixed(1)} MB';
+                                        final percent = fraction == null
+                                            ? ''
+                                            : ' ${(fraction * 100).round()}%';
+
+                                        final stageText = switch (value.stage) {
+                                          UpdateStage.connecting =>
+                                            'Connecting to update server…',
+                                          UpdateStage.downloading =>
+                                            'Downloading update$percent',
+                                          UpdateStage.verifying =>
+                                            'Verifying download…',
+                                          UpdateStage.readyToInstall =>
+                                            'Ready to install',
+                                        };
+
+                                        return SizedBox(
+                                          width: 520,
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(stageText),
+                                              const SizedBox(height: 18),
+                                              LinearProgressIndicator(
+                                                value: value.stage ==
+                                                        UpdateStage.downloading
+                                                    ? fraction
+                                                    : value.stage ==
+                                                            UpdateStage.readyToInstall
+                                                        ? 1
+                                                        : null,
+                                              ),
+                                              const SizedBox(height: 12),
+                                              if (value.downloadedBytes > 0)
+                                                Text(
+                                                  '${downloadedMb.toStringAsFixed(1)} MB$totalText',
+                                                  style: const TextStyle(
+                                                    color: AppColors.muted,
+                                                  ),
+                                                ),
+                                              if (value.stage ==
+                                                  UpdateStage.readyToInstall) ...[
+                                                const SizedBox(height: 14),
+                                                const Text(
+                                                  'Android will now ask you to confirm the installation.',
+                                                  style: TextStyle(
+                                                    color: AppColors.muted,
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   ),
+                                ),
+                              );
+
+                              try {
+                                await ref.read(updateServiceProvider).downloadAndInstall(
+                                      info,
+                                      onProgress: (value) =>
+                                          progress.value = value,
+                                    );
+                                await Future<void>.delayed(
+                                  const Duration(milliseconds: 500),
                                 );
-                                await ref
-                                    .read(updateServiceProvider)
-                                    .downloadAndInstall(info);
+                                if (context.mounted) {
+                                  Navigator.of(context, rootNavigator: true)
+                                      .pop();
+                                }
+                                await dialogFuture;
                               } catch (error) {
+                                if (context.mounted) {
+                                  Navigator.of(context, rootNavigator: true)
+                                      .pop();
+                                }
+                                await dialogFuture;
                                 if (!context.mounted) {
+                                  progress.dispose();
                                   return;
                                 }
-                                ScaffoldMessenger.of(context)
-                                  ..hideCurrentSnackBar()
-                                  ..showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        error.toString().replaceFirst(
-                                              'PlatformException',
-                                              'Update',
-                                            ),
-                                      ),
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      error.toString().replaceFirst(
+                                            'PlatformException',
+                                            'Update',
+                                          ),
                                     ),
-                                  );
+                                    action: SnackBarAction(
+                                      label: 'Retry',
+                                      onPressed: () =>
+                                          ref.invalidate(updateCheckProvider),
+                                    ),
+                                  ),
+                                );
+                              } finally {
+                                progress.dispose();
                               }
                             },
                           ),
