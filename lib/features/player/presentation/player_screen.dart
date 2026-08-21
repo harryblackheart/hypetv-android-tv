@@ -37,7 +37,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final _playFocus = FocusNode(debugLabel: 'player-play');
   final _rewindFocus = FocusNode(debugLabel: 'player-rewind');
   final _forwardFocus = FocusNode(debugLabel: 'player-forward');
-  final _pipFocus = FocusNode(debugLabel: 'player-pip');
   final _aspectFocus = FocusNode(debugLabel: 'player-aspect');
   final _infoFocus = FocusNode(debugLabel: 'player-info');
   final _advancedTracksFocus = FocusNode(debugLabel: 'player-advanced-tracks');
@@ -164,6 +163,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_isLive) {
       return;
     }
+
     double? progress = widget.arguments.item.progress;
     if (progress == null) {
       final history = await ref.read(watchHistoryServiceProvider).load();
@@ -175,17 +175,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }
       }
     }
+
     if (progress == null || progress < .02 || progress >= .95) {
       return;
     }
-    for (var attempt = 0; attempt < 12; attempt++) {
+
+    for (var attempt = 0; attempt < 16; attempt++) {
       final duration = _player.state.duration;
       if (duration > Duration.zero) {
-        await _player.seek(
-          Duration(
-            milliseconds: (duration.inMilliseconds * progress).round(),
+        final resumeAt = Duration(
+          milliseconds: (duration.inMilliseconds * progress).round(),
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        final shouldResume = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Continue watching?'),
+            content: Text(
+              'Resume from ${_formatDuration(resumeAt)} or start from the beginning?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Start from beginning'),
+              ),
+              FilledButton(
+                autofocus: true,
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text('Resume from ${_formatDuration(resumeAt)}'),
+              ),
+            ],
           ),
         );
+
+        if (shouldResume == true) {
+          await _player.seek(resumeAt);
+        } else {
+          await ref
+              .read(watchHistoryServiceProvider)
+              .clearProgress(widget.arguments.item);
+          ref.invalidate(watchHistoryProvider);
+          await _player.seek(Duration.zero);
+        }
+
+        if (mounted) {
+          _surfaceFocus.requestFocus();
+          _scheduleControls();
+        }
         return;
       }
       await Future<void>.delayed(const Duration(milliseconds: 250));
@@ -213,7 +254,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _playFocus,
         _rewindFocus,
         _forwardFocus,
-        _pipFocus,
         _aspectFocus,
         _infoFocus,
         _advancedTracksFocus,
@@ -343,7 +383,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _pipFocus.requestFocus();
+        _aspectFocus.requestFocus();
       }
     });
   }
@@ -357,18 +397,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       };
     });
     _scheduleControls();
-  }
-
-  Future<void> _enterPictureInPicture() async {
-    try {
-      await const MethodChannel('hypetv/player').invokeMethod<void>('enterPip');
-    } on PlatformException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message ?? 'Picture-in-picture is unavailable on this device.')),
-        );
-      }
-    }
   }
 
   Future<void> _showStreamInfo() async {
@@ -419,7 +447,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       await _player.setVolume(0);
     } catch (_) {}
     if (mounted) {
-      context.pop();
+      final router = GoRouter.of(context);
+      if (router.canPop()) {
+        router.pop();
+      } else {
+        // Some entry paths can replace the route rather than push it.
+        // Never leave the player trapped with _exiting=true and nowhere to pop.
+        router.go('/');
+      }
     }
   }
 
@@ -508,7 +543,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _playFocus,
       _rewindFocus,
       _forwardFocus,
-      _pipFocus,
       _aspectFocus,
       _infoFocus,
       _advancedTracksFocus,
@@ -745,24 +779,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 if (_advancedVisible) ...[
                                   const SizedBox(height: 14),
                                   Row(
-                                    children: [
-                                      _PlayerIconButton(
-                                        focusNode: _pipFocus,
-                                        tooltip: 'Picture in picture',
-                                        icon: Icons.picture_in_picture_alt_rounded,
-                                        onPressed: () => unawaited(_enterPictureInPicture()),
-                                        onFocusChange: _onControlFocus,
-                                        onArrowRight: () => _aspectFocus.requestFocus(),
-                                        onArrowUp: () => _playFocus.requestFocus(),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      _PlayerIconButton(
+                                    children: [                                      _PlayerIconButton(
                                         focusNode: _aspectFocus,
                                         tooltip: 'Picture size',
                                         icon: Icons.aspect_ratio_rounded,
                                         onPressed: _cycleVideoFit,
                                         onFocusChange: _onControlFocus,
-                                        onArrowLeft: () => _pipFocus.requestFocus(),
+                                        
                                         onArrowRight: () => _advancedTracksFocus.requestFocus(),
                                         onArrowUp: () => _playFocus.requestFocus(),
                                       ),
@@ -789,7 +812,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       ),
                                       const SizedBox(width: 16),
                                       const Text(
-                                        'PIP   ·   Picture   ·   Audio & subtitles   ·   Info',
+                                        'Picture   ·   Audio & subtitles   ·   Info',
                                         style: TextStyle(color: AppColors.muted, fontSize: 14),
                                       ),
                                     ],
