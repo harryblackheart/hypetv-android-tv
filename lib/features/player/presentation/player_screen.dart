@@ -569,9 +569,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) {
-          unawaited(_stopAndPop());
+        if (didPop) return;
+        if (_advancedVisible) {
+          setState(() => _advancedVisible = false);
+          _surfaceFocus.requestFocus();
+          _scheduleControls();
+          return;
         }
+        if (_controlsVisible) {
+          _controlsTimer?.cancel();
+          setState(() => _controlsVisible = false);
+          _surfaceFocus.requestFocus();
+          return;
+        }
+        unawaited(_stopAndPop());
       },
       child: Scaffold(
         backgroundColor: Colors.black,

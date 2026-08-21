@@ -365,6 +365,8 @@ class SettingsScreen extends ConsumerWidget {
                           const SizedBox(height: 34),
                         ],
                         const _SectionTitle('DEVICE'),
+                        const _DeviceNameTile(),
+                        const SizedBox(height: 16),
                         const _DisplayModeTile(),
                         const SizedBox(height: 16),
                         _SettingsTile(
@@ -675,6 +677,45 @@ class _SettingsTileState extends State<_SettingsTile> {
   }
 }
 
+
+class _DeviceNameTile extends ConsumerWidget {
+  const _DeviceNameTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefs = ref.watch(contentPreferencesProvider).value ?? const ContentPreferences();
+    return _SettingsTile(
+      icon: Icons.tv_rounded,
+      title: 'Device name',
+      subtitle: prefs.deviceName,
+      actionLabel: 'Rename',
+      onPressed: () async {
+        final controller = TextEditingController(text: prefs.deviceName);
+        final name = await showDialog<String>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Name this device'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 32,
+              decoration: const InputDecoration(hintText: 'Living Room TV'),
+              onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Save')),
+            ],
+          ),
+        );
+        controller.dispose();
+        if (name != null && name.isNotEmpty) {
+          await ref.read(contentPreferencesProvider.notifier).save(prefs.copyWith(deviceName: name));
+        }
+      },
+    );
+  }
+}
 
 class _DisplayModeTile extends ConsumerWidget {
   const _DisplayModeTile();

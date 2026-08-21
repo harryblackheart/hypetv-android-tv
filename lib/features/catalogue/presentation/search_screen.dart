@@ -11,6 +11,7 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
 import 'package:hypetv/services/content_preferences_service.dart';
 import 'package:hypetv/widgets/tv_action.dart';
+import 'package:hypetv/services/catalogue_cache_service.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key, this.initialType});
@@ -55,21 +56,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
     try {
       final service = ref.read(catalogueServiceProvider);
-      List<ContentItem> results;
-      try {
-        results = await service.search(query, type: _type);
-      } on CatalogueException catch (error) {
-        if (error.isAuthenticationRejected) {
-          rethrow;
-        }
-        results = const [];
-      }
-
-      // Some provider search endpoints only expose a small Home subset.
-      // If the dedicated endpoint gives us nothing, search the full selected
-      // catalogue by category instead of searching the 8/12 Home cards.
+      final cache = ref.read(catalogueCacheProvider);
+      var results = await cache.search(_type, query);
       if (results.isEmpty) {
-        results = await _searchFullCatalogue(service, query);
+        try {
+          results = await service.search(query, type: _type);
+        } on CatalogueException catch (error) {
+          if (error.isAuthenticationRejected) rethrow;
+          results = const [];
+        }
+      }
+      if (results.isEmpty) {
+        final synced = await cache.syncType(service, _type);
+        final needle = query.toLowerCase();
+        results = synced.where((item) =>
+          item.title.toLowerCase().contains(needle) ||
+          item.subtitle.toLowerCase().contains(needle) ||
+          (item.description?.toLowerCase().contains(needle) ?? false)
+        ).take(150).toList(growable: false);
       }
       if (mounted) {
         setState(() => _results = results);
@@ -116,31 +120,66 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       }
     }
 
-    if (_type == CatalogueType.live) {
-      addMatches(await service.fetchItems(CatalogueType.live));
+    // IMPORTANT: do not request the provider's entire movie/series catalogue
+    // without a category. Large Xtream catalogues can time out in the Worker.
+    // Category-scoped catalogue calls are already proven to work in Browse All,
+    // so search those same complete category lists instead.
+    List<CatalogueCategory> categories;
+    try {
+      categories = await service.fetchCategories(_type);
+    } on CatalogueException catch (error) {
+      if (error.isAuthenticationRejected) {
+        rethrow;
+      }
+      return const [];
+    }
+
+    if (_type == CatalogueType.live && categories.isEmpty) {
+      try {
+        final items = await service.fetchItems(CatalogueType.live);
+        addMatches(items);
+      } on CatalogueException catch (error) {
+        if (error.isAuthenticationRejected) {
+          rethrow;
+        }
+      }
       return matches;
     }
 
-    final categories = await service.fetchCategories(_type);
+    const pageSize = 500;
     for (final category in categories) {
-      var page = 1;
-      while (matches.length < 100) {
-        final items = await service.fetchItems(
-          _type,
-          categoryId: category.id,
-          page: page,
-          limit: 1000,
-        );
-        addMatches(items);
-        if (items.length < 1000) {
-          break;
-        }
-        page++;
-      }
       if (matches.length >= 100) {
         break;
       }
+      for (var page = 1; page <= 20; page++) {
+        List<ContentItem> items;
+        try {
+          items = await service.fetchItems(
+            _type,
+            categoryId: category.id,
+            page: page,
+            limit: pageSize,
+          );
+        } on CatalogueException catch (error) {
+          if (error.isAuthenticationRejected) {
+            rethrow;
+          }
+          // One bad bouquet/category must not cancel the whole search.
+          break;
+        } catch (_) {
+          break;
+        }
+
+        if (items.isEmpty) {
+          break;
+        }
+        addMatches(items);
+        if (matches.length >= 100 || items.length < pageSize) {
+          break;
+        }
+      }
     }
+
     return matches;
   }
 

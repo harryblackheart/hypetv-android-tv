@@ -45,6 +45,7 @@ class ContentPreferences {
     this.showSeries = true,
     this.hiddenLiveGroups = const <String>{},
     this.displayMode = DisplayMode.automatic,
+    this.deviceName = 'HypeTV Device',
   });
 
   final StartScreen startScreen;
@@ -53,6 +54,7 @@ class ContentPreferences {
   final bool showSeries;
   final Set<String> hiddenLiveGroups;
   final DisplayMode displayMode;
+  final String deviceName;
 
   ContentPreferences copyWith({
     StartScreen? startScreen,
@@ -61,6 +63,7 @@ class ContentPreferences {
     bool? showSeries,
     Set<String>? hiddenLiveGroups,
     DisplayMode? displayMode,
+    String? deviceName,
   }) => ContentPreferences(
         startScreen: startScreen ?? this.startScreen,
         showLive: showLive ?? this.showLive,
@@ -68,6 +71,7 @@ class ContentPreferences {
         showSeries: showSeries ?? this.showSeries,
         hiddenLiveGroups: hiddenLiveGroups ?? this.hiddenLiveGroups,
         displayMode: displayMode ?? this.displayMode,
+        deviceName: deviceName ?? this.deviceName,
       );
 
   Map<String, dynamic> toJson() => {
@@ -77,6 +81,7 @@ class ContentPreferences {
         'show_series': showSeries,
         'hidden_live_groups': hiddenLiveGroups.toList(),
         'display_mode': displayMode.name,
+        'device_name': deviceName,
       };
 
   factory ContentPreferences.fromJson(Map<String, dynamic> json) {
@@ -95,6 +100,9 @@ class ContentPreferences {
               .map((value) => value.toString())
               .toSet()
           : const <String>{},
+      deviceName: json['device_name']?.toString().trim().isNotEmpty == true
+          ? json['device_name'].toString().trim()
+          : 'HypeTV Device',
       displayMode: DisplayMode.values.firstWhere(
         (value) => value.name == displayName,
         orElse: () => DisplayMode.automatic,

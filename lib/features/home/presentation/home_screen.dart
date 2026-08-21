@@ -124,12 +124,15 @@ class _LoadedHome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hero = shelves
+    final heroCandidates = shelves
         .expand((shelf) => shelf.items)
-        .firstWhere(
-          (item) => item.backdropUrl?.isNotEmpty == true,
-          orElse: () => shelves.first.items.first,
-        );
+        .where((item) => item.backdropUrl?.isNotEmpty == true)
+        .take(100)
+        .toList(growable: false);
+    final daySeed = DateTime.now().difference(DateTime(2020)).inDays;
+    final hero = heroCandidates.isNotEmpty
+        ? heroCandidates[daySeed % heroCandidates.length]
+        : shelves.first.items.first;
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {

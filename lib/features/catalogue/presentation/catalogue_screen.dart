@@ -11,7 +11,7 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
 import 'package:hypetv/services/favourites_service.dart';
 import 'package:hypetv/services/watch_history_service.dart';
-import 'package:hypetv/services/content_preferences_service.dart';
+import 'package:hypetv/services/catalogue_cache_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
 class CatalogueScreen extends ConsumerStatefulWidget {
@@ -33,6 +33,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
 
   static const _favouritesCategory = '__favourites__';
   static const _continueCategory = '__continue__';
+  static const _allCategory = '__all__';
 
   @override
   void initState() {
@@ -50,12 +51,6 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
       var categories = _categories;
       if (categories.isEmpty) {
         categories = await service.fetchCategories(widget.type);
-        if (widget.type == CatalogueType.live) {
-          final prefs = await ref.read(contentPreferencesProvider.future);
-          categories = categories
-              .where((category) => !prefs.hiddenLiveGroups.contains(category.id))
-              .toList(growable: false);
-        }
       }
 
       var effectiveCategory = categoryId;
@@ -71,24 +66,36 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
         items = history
             .where((item) => catalogueTypeOf(item) == widget.type)
             .toList(growable: false);
+      } else if (effectiveCategory == _allCategory) {
+        final cache = ref.read(catalogueCacheProvider);
+        items = await cache.load(widget.type);
+        if (items.isEmpty) {
+          items = await cache.syncType(service, widget.type);
+        }
       } else {
         if (_requiresCategory &&
             (effectiveCategory == null || effectiveCategory.isEmpty) &&
             categories.isNotEmpty) {
           effectiveCategory = categories.first.id;
         }
-        items = await service.fetchItems(
-          widget.type,
-          categoryId: effectiveCategory,
-          limit: 60,
-        );
-        if (widget.type == CatalogueType.live && items.isEmpty) {
-          final home = await service.fetchHome();
-          items = home
-              .expand((shelf) => shelf.items)
-              .where((item) => item.type == 'live')
-              .toList(growable: false);
+        // Load the complete selected category, not an arbitrary first 60.
+        // The Worker paginates the provider response, so large categories can
+        // be assembled safely without truncating Drama/Movies/Series.
+        const pageSize = 500;
+        final loaded = <ContentItem>[];
+        for (var page = 1; page <= 20; page++) {
+          final batch = await service.fetchItems(
+            widget.type,
+            categoryId: effectiveCategory,
+            page: page,
+            limit: pageSize,
+          );
+          loaded.addAll(batch);
+          if (batch.length < pageSize) {
+            break;
+          }
         }
+        items = loaded;
       }
       if (!mounted) return;
       setState(() {
@@ -135,26 +142,6 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
                   const Spacer(),
-                  if (widget.type == CatalogueType.live) ...[
-                    FilledButton.icon(
-                      onPressed: () => context.push('/catchup'),
-                      icon: const Icon(Icons.history_rounded),
-                      label: const Text('Catch-up'),
-                    ),
-                    const SizedBox(width: 10),
-                    FilledButton.icon(
-                      onPressed: () => context.push('/guide'),
-                      icon: const Icon(Icons.calendar_view_week_rounded),
-                      label: const Text('Guide'),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                  IconButton(
-                    tooltip: 'Refresh',
-                    onPressed: () => _load(categoryId: _selectedCategory),
-                    icon: const Icon(Icons.refresh_rounded, size: 30),
-                  ),
-                  const SizedBox(width: 8),
                   IconButton(
                     tooltip: 'Search',
                     onPressed: () => context.push(
@@ -181,17 +168,19 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                       selected: _selectedCategory == _favouritesCategory,
                       onPressed: () => _load(categoryId: _favouritesCategory),
                     ),
+                    _CategoryChip(
+                      label: 'All',
+                      selected: _selectedCategory == _allCategory ||
+                          (!_requiresCategory && _selectedCategory == null),
+                      onPressed: () => _load(
+                        categoryId: _requiresCategory ? _allCategory : null,
+                      ),
+                    ),
                     if (widget.type != CatalogueType.live)
                       _CategoryChip(
                         label: 'Continue Watching',
                         selected: _selectedCategory == _continueCategory,
                         onPressed: () => _load(categoryId: _continueCategory),
-                      ),
-                    if (!_requiresCategory)
-                      _CategoryChip(
-                        label: 'All',
-                        selected: _selectedCategory == null,
-                        onPressed: () => _load(),
                       ),
                     for (final category in _categories)
                       _CategoryChip(
