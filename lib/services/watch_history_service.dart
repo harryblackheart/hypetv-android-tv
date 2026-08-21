@@ -67,6 +67,17 @@ class WatchHistoryService {
     );
   }
 
+
+  Future<void> clearProgress(ContentItem item) async {
+    final existing = await load();
+    final updated = existing
+        .where((entry) => entry.id != item.id)
+        .toList(growable: false);
+    await _storage.saveWatchHistory(
+      jsonEncode(updated.map(_toJson).toList(growable: false)),
+    );
+  }
+
   Map<String, dynamic> _toJson(ContentItem item) => {
     'id': item.id,
     'source_id': item.sourceId,
