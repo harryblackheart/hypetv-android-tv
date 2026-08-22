@@ -295,6 +295,12 @@ class _ActivationKeypad extends StatelessWidget {
                   fontSize: compact ? 13 : 14,
                 ),
               ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => context.push('/link-device'),
+                icon: const Icon(Icons.link_rounded),
+                label: const Text('Link to an existing HypeTV account'),
+              ),
             ],
           ),
         ),

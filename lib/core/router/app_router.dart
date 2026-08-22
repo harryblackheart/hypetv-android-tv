@@ -13,6 +13,7 @@ import 'package:hypetv/features/player/presentation/player_screen.dart';
 import 'package:hypetv/features/platform/presentation/platform_gate.dart';
 import 'package:hypetv/features/settings/presentation/settings_screen.dart';
 import 'package:hypetv/features/settings/presentation/link_device_screen.dart';
+import 'package:hypetv/features/settings/presentation/linked_devices_screen.dart';
 import 'package:hypetv/features/profiles/presentation/profiles_screen.dart';
 import 'package:hypetv/features/splash/presentation/splash_screen.dart';
 
@@ -34,6 +35,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/link-device',
         builder: (context, state) => const LinkDeviceScreen(),
+      ),
+      GoRoute(
+        path: '/linked-devices',
+        builder: (context, state) => const LinkedDevicesScreen(),
       ),
       GoRoute(
         path: '/home',

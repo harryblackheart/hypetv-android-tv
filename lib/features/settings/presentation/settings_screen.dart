@@ -366,6 +366,14 @@ class SettingsScreen extends ConsumerWidget {
                         ],
                         const _SectionTitle('DEVICE'),
                         _SettingsTile(
+                          icon: Icons.devices_other_rounded,
+                          title: 'Linked devices',
+                          subtitle: 'See and unlink devices on this account',
+                          actionLabel: 'Manage',
+                          onPressed: () => context.push('/linked-devices'),
+                        ),
+                        const SizedBox(height: 16),
+                        _SettingsTile(
                           icon: Icons.qr_code_2_rounded,
                           title: 'Link another device',
                           subtitle: 'Phone, tablet or another HypeTV TV',

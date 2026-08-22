@@ -84,6 +84,13 @@ class SecureStorageService {
     ]);
   }
 
+  Future<void> savePairedActivationToken(String token) async {
+    await Future.wait([
+      _storage.delete(key: _activationCodeKey),
+      _storage.write(key: _activationTokenKey, value: token),
+    ]);
+  }
+
   Future<void> clearActivation() async {
     await Future.wait([
       _storage.delete(key: _activationCodeKey),

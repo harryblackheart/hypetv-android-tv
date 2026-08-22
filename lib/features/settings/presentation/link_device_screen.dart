@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hypetv/services/content_preferences_service.dart';
 import 'package:hypetv/services/device_link_service.dart';
 
 class LinkDeviceScreen extends ConsumerStatefulWidget {
@@ -35,8 +36,8 @@ class _LinkDeviceScreenState extends ConsumerState<LinkDeviceScreen> {
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
-          maxLength: 6,
-          decoration: const InputDecoration(hintText: '123456'),
+          maxLength: 5,
+          decoration: const InputDecoration(hintText: '12345'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context),
@@ -49,10 +50,14 @@ class _LinkDeviceScreenState extends ConsumerState<LinkDeviceScreen> {
     if (code == null || code.trim().isEmpty) return;
     setState(() { busy = true; error = null; });
     try {
-      await ref.read(deviceLinkServiceProvider).joinPairing(code);
+      final prefs =
+          ref.read(contentPreferencesProvider).value ?? const ContentPreferences();
+      await ref
+          .read(deviceLinkServiceProvider)
+          .claimPairing(code, deviceName: prefs.deviceName);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Device linked successfully.')),
+          const SnackBar(content: Text('Device linked and account data synced.')),
         );
       }
     } catch (e) {
