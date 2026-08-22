@@ -39,7 +39,7 @@ class DeviceLinkService {
   }
 
   Future<PairingSession> createPairing() async {
-    await _registry.pushLocalAccountState();
+    await _registry.reconcileAccountState();
     final response = await _client.post(
       Uri.parse('${AppConstants.apiBaseUrl}/api/app/pairing/code'),
       headers: await _headers(),
@@ -80,7 +80,7 @@ class DeviceLinkService {
       throw Exception('Pairing succeeded but no device token was returned.');
     }
     await _storage.savePairedActivationToken(token);
-    await _registry.pullAccountState();
+    await _registry.reconcileAccountState();
   }
 
   static Map<String, dynamic> _map(String source) {

@@ -16,6 +16,9 @@ import 'package:hypetv/widgets/tv_action.dart';
 import 'package:hypetv/services/watch_history_service.dart';
 import 'package:hypetv/services/profile_service.dart';
 import 'package:hypetv/services/content_preferences_service.dart';
+import 'package:hypetv/services/device_registry_service.dart';
+import 'package:hypetv/services/secure_storage_service.dart';
+import 'package:hypetv/services/favourites_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +29,34 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   var _redirecting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(_syncAccountInBackground);
+  }
+
+  Future<void> _syncAccountInBackground() async {
+    try {
+      final registry = ref.read(deviceRegistryServiceProvider);
+      final valid = await registry.validateCurrentDevice();
+      if (!mounted) return;
+      if (!valid) {
+        await ref.read(secureStorageServiceProvider).clearActivation();
+        if (mounted) context.go('/activation');
+        return;
+      }
+      await registry.reconcileAccountState();
+      if (!mounted) return;
+      ref
+        ..invalidate(profileProvider)
+        ..invalidate(favouritesProvider)
+        ..invalidate(watchHistoryProvider)
+        ..invalidate(contentPreferencesProvider);
+    } catch (_) {
+      // Account sync must never take down playback or the TV home screen.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

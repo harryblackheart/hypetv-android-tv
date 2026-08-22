@@ -83,13 +83,113 @@ class DeviceRegistryService {
     }
     final rows = body['devices'];
     final devices = rows is List
-        ? rows.whereType<Map<String, dynamic>>().map(LinkedDevice.fromJson).toList()
+        ? rows
+            .whereType<Map>()
+            .map((row) => LinkedDevice.fromJson(
+                  row.map((key, value) => MapEntry(key.toString(), value)),
+                ))
+            .toList(growable: false)
         : <LinkedDevice>[];
     return LinkedDeviceList(
       used: int.tryParse(body['used']?.toString() ?? '') ?? devices.length,
       limit: int.tryParse(body['limit']?.toString() ?? '') ?? 3,
       devices: devices,
     );
+  }
+
+  Future<bool> validateCurrentDevice() async {
+    try {
+      final response = await _client.get(
+        Uri.parse('${AppConstants.apiBaseUrl}/api/app/device'),
+        headers: await _headers(),
+      ).timeout(const Duration(seconds: 10));
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (_) {
+      // A network outage must not log the customer out or crash the TV app.
+      return true;
+    }
+  }
+
+  Future<void> reconcileAccountState() async {
+    await _reconcileProfiles();
+    await _reconcileList('favourites', await _storage.favourites,
+        _storage.saveFavourites);
+    await _reconcileList('history', await _storage.watchHistory,
+        _storage.saveWatchHistory);
+    await _reconcileMap('preferences', await _storage.contentPreferences,
+        _storage.saveContentPreferences);
+  }
+
+  Future<void> _reconcileProfiles() async {
+    try {
+      final remote = await pullSync('profiles');
+      final payload = remote['payload'];
+      final remoteProfiles =
+          payload is Map<String, dynamic> ? payload['profiles'] : null;
+      if (remoteProfiles is List && remoteProfiles.isNotEmpty) {
+        await _storage.saveProfiles(jsonEncode(remoteProfiles));
+        final active = payload['active_id']?.toString();
+        if (active?.isNotEmpty == true) {
+          await _storage.saveActiveProfileId(active!);
+        }
+        return;
+      }
+
+      final localRaw = await _storage.profiles;
+      if (localRaw?.isNotEmpty == true) {
+        final local = _decode(localRaw!);
+        if (local is List && local.isNotEmpty) {
+          await pushSync('profiles', {
+            'profiles': local,
+            'active_id': await _storage.activeProfileId,
+          });
+        }
+      }
+    } catch (_) {
+      // Sync is best-effort. Playback/home must remain usable offline.
+    }
+  }
+
+  Future<void> _reconcileList(
+    String key,
+    String? localRaw,
+    Future<void> Function(String value) save,
+  ) async {
+    try {
+      final remote = await pullSync(key);
+      final payload = remote['payload'];
+      if (payload is List && payload.isNotEmpty) {
+        await save(jsonEncode(payload));
+        return;
+      }
+      if (localRaw?.isNotEmpty == true) {
+        final local = _decode(localRaw!);
+        if (local is List && local.isNotEmpty) {
+          await pushSync(key, local);
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _reconcileMap(
+    String key,
+    String? localRaw,
+    Future<void> Function(String value) save,
+  ) async {
+    try {
+      final remote = await pullSync(key);
+      final payload = remote['payload'];
+      if (payload is Map && payload.isNotEmpty) {
+        await save(jsonEncode(payload));
+        return;
+      }
+      if (localRaw?.isNotEmpty == true) {
+        final local = _decode(localRaw!);
+        if (local is Map && local.isNotEmpty) {
+          await pushSync(key, local);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> unpair(String deviceId) async {

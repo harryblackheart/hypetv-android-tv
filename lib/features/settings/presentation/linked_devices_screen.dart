@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hypetv/services/device_registry_service.dart';
+import 'package:hypetv/services/secure_storage_service.dart';
 
 class LinkedDevicesScreen extends ConsumerWidget {
   const LinkedDevicesScreen({super.key});
@@ -41,10 +43,27 @@ class LinkedDevicesScreen extends ConsumerWidget {
                       ? const Chip(label: Text('This device'))
                       : TextButton(
                           onPressed: () async {
-                            await ref
-                                .read(deviceRegistryServiceProvider)
-                                .unpair(device.id);
-                            ref.invalidate(linkedDevicesProvider);
+                            try {
+                              await ref
+                                  .read(deviceRegistryServiceProvider)
+                                  .unpair(device.id);
+                              ref.invalidate(linkedDevicesProvider);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('${device.name} unlinked.')),
+                                );
+                              }
+                            } catch (error) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Could not unlink device. ${error.toString()}',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
                           },
                           child: const Text('Unlink'),
                         ),
