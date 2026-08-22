@@ -97,7 +97,7 @@ class ProfilesScreen extends ConsumerWidget {
                     decoration: const InputDecoration(labelText: 'Profile name')),
                 const SizedBox(height: 20),
                 DropdownButtonFormField<String>(
-                  value: avatar,
+                  initialValue: avatar,
                   decoration: const InputDecoration(labelText: 'Character icon'),
                   items: ProfileController.avatars
                       .map((a) => DropdownMenuItem(value: a, child: Text(a.toUpperCase())))
