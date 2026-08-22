@@ -142,135 +142,31 @@ class SettingsScreen extends ConsumerWidget {
                                 ref.invalidate(updateCheckProvider);
                                 return;
                               }
-
-                              final progress = ValueNotifier<UpdateDownloadProgress>(
-                                const UpdateDownloadProgress(
-                                  stage: UpdateStage.connecting,
-                                  downloadedBytes: 0,
-                                  totalBytes: null,
-                                ),
-                              );
-
-                              final dialogFuture = showDialog<void>(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (dialogContext) => PopScope(
-                                  canPop: false,
-                                  child: AlertDialog(
-                                    title: Text(
-                                      'Updating HypeTV to ${info.latestVersion}',
-                                    ),
-                                    content: ValueListenableBuilder<UpdateDownloadProgress>(
-                                      valueListenable: progress,
-                                      builder: (context, value, _) {
-                                        final fraction = value.fraction;
-                                        final downloadedMb =
-                                            value.downloadedBytes / (1024 * 1024);
-                                        final total = value.totalBytes;
-                                        final totalText = total == null
-                                            ? ''
-                                            : ' / ${(total / (1024 * 1024)).toStringAsFixed(1)} MB';
-                                        final percent = fraction == null
-                                            ? ''
-                                            : ' ${(fraction * 100).round()}%';
-
-                                        final stageText = switch (value.stage) {
-                                          UpdateStage.connecting =>
-                                            'Connecting to update server…',
-                                          UpdateStage.downloading =>
-                                            'Downloading update$percent',
-                                          UpdateStage.verifying =>
-                                            'Verifying download…',
-                                          UpdateStage.readyToInstall =>
-                                            'Ready to install',
-                                        };
-
-                                        return SizedBox(
-                                          width: 520,
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(stageText),
-                                              const SizedBox(height: 18),
-                                              LinearProgressIndicator(
-                                                value: value.stage ==
-                                                        UpdateStage.downloading
-                                                    ? fraction
-                                                    : value.stage ==
-                                                            UpdateStage.readyToInstall
-                                                        ? 1
-                                                        : null,
-                                              ),
-                                              const SizedBox(height: 12),
-                                              if (value.downloadedBytes > 0)
-                                                Text(
-                                                  '${downloadedMb.toStringAsFixed(1)} MB$totalText',
-                                                  style: const TextStyle(
-                                                    color: AppColors.muted,
-                                                  ),
-                                                ),
-                                              if (value.stage ==
-                                                  UpdateStage.readyToInstall) ...[
-                                                const SizedBox(height: 14),
-                                                const Text(
-                                                  'Android will now ask you to confirm the installation.',
-                                                  style: TextStyle(
-                                                    color: AppColors.muted,
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              );
-
                               try {
-                                await ref.read(updateServiceProvider).downloadAndInstall(
-                                      info,
-                                      onProgress: (value) =>
-                                          progress.value = value,
-                                    );
-                                await Future<void>.delayed(
-                                  const Duration(milliseconds: 500),
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Downloading HypeTV update…'),
+                                  ),
                                 );
-                                if (context.mounted) {
-                                  Navigator.of(context, rootNavigator: true)
-                                      .pop();
-                                }
-                                await dialogFuture;
+                                await ref
+                                    .read(updateServiceProvider)
+                                    .downloadAndInstall(info);
                               } catch (error) {
-                                if (context.mounted) {
-                                  Navigator.of(context, rootNavigator: true)
-                                      .pop();
-                                }
-                                await dialogFuture;
                                 if (!context.mounted) {
-                                  progress.dispose();
                                   return;
                                 }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      error.toString().replaceFirst(
-                                            'PlatformException',
-                                            'Update',
-                                          ),
+                                ScaffoldMessenger.of(context)
+                                  ..hideCurrentSnackBar()
+                                  ..showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        error.toString().replaceFirst(
+                                              'PlatformException',
+                                              'Update',
+                                            ),
+                                      ),
                                     ),
-                                    action: SnackBarAction(
-                                      label: 'Retry',
-                                      onPressed: () =>
-                                          ref.invalidate(updateCheckProvider),
-                                    ),
-                                  ),
-                                );
-                              } finally {
-                                progress.dispose();
+                                  );
                               }
                             },
                           ),
@@ -365,18 +261,6 @@ class SettingsScreen extends ConsumerWidget {
                           const SizedBox(height: 34),
                         ],
                         const _SectionTitle('DEVICE'),
-                        _SettingsTile(
-                          icon: Icons.qr_code_2_rounded,
-                          title: 'Link another device',
-                          subtitle: 'Phone, tablet or another HypeTV TV',
-                          actionLabel: 'Link',
-                          onPressed: () => context.push('/link-device'),
-                        ),
-                        const SizedBox(height: 16),
-                        const _DeviceNameTile(),
-                        const SizedBox(height: 16),
-                        const _DisplayModeTile(),
-                        const SizedBox(height: 16),
                         _SettingsTile(
                           icon: Icons.high_quality_rounded,
                           title: 'Display',
@@ -685,45 +569,6 @@ class _SettingsTileState extends State<_SettingsTile> {
   }
 }
 
-
-class _DeviceNameTile extends ConsumerWidget {
-  const _DeviceNameTile();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final prefs = ref.watch(contentPreferencesProvider).value ?? const ContentPreferences();
-    return _SettingsTile(
-      icon: Icons.tv_rounded,
-      title: 'Device name',
-      subtitle: prefs.deviceName,
-      actionLabel: 'Rename',
-      onPressed: () async {
-        final controller = TextEditingController(text: prefs.deviceName);
-        final name = await showDialog<String>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Name this device'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              maxLength: 32,
-              decoration: const InputDecoration(hintText: 'Living Room TV'),
-              onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Save')),
-            ],
-          ),
-        );
-        controller.dispose();
-        if (name != null && name.isNotEmpty) {
-          await ref.read(contentPreferencesProvider.notifier).save(prefs.copyWith(deviceName: name));
-        }
-      },
-    );
-  }
-}
 
 class _DisplayModeTile extends ConsumerWidget {
   const _DisplayModeTile();

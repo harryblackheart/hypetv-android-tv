@@ -4,17 +4,16 @@ import 'package:go_router/go_router.dart';
 import 'package:hypetv/features/activation/presentation/activation_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catalogue_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catalogue_diagnostics_screen.dart';
-import 'package:hypetv/features/catalogue/presentation/catchup_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/content_details_screen.dart';
-import 'package:hypetv/features/catalogue/presentation/live_guide_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/search_screen.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/favourites/presentation/favourites_screen.dart';
 import 'package:hypetv/features/home/presentation/home_screen.dart';
-import 'package:hypetv/features/messages/presentation/messages_screen.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
 import 'package:hypetv/features/platform/presentation/platform_gate.dart';
 import 'package:hypetv/features/settings/presentation/settings_screen.dart';
+import 'package:hypetv/features/settings/presentation/link_device_screen.dart';
+import 'package:hypetv/features/profiles/presentation/profiles_screen.dart';
 import 'package:hypetv/features/splash/presentation/splash_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -27,6 +26,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ActivationScreen(),
       ),
       GoRoute(
+        path: '/profiles',
+        builder: (context, state) => ProfilesScreen(
+          switchOnly: state.uri.queryParameters['switch'] == '1',
+        ),
+      ),
+      GoRoute(
+        path: '/link-device',
+        builder: (context, state) => const LinkDeviceScreen(),
+      ),
+      GoRoute(
         path: '/home',
         builder: (context, state) => const PlatformGate(child: HomeScreen()),
       ),
@@ -34,18 +43,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/live',
         builder: (context, state) => const PlatformGate(
           child: CatalogueScreen(type: CatalogueType.live),
-        ),
-      ),
-      GoRoute(
-        path: '/catchup',
-        builder: (context, state) => const PlatformGate(child: CatchupScreen()),
-      ),
-      GoRoute(
-        path: '/guide',
-        builder: (context, state) => PlatformGate(
-          child: LiveGuideScreen(
-            initialChannel: state.extra is ContentItem ? state.extra! as ContentItem : null,
-          ),
         ),
       ),
       GoRoute(
@@ -102,10 +99,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/debug/catalogue',
           builder: (context, state) => const CatalogueDiagnosticsScreen(),
         ),
-      GoRoute(
-        path: '/messages',
-        builder: (context, state) => const PlatformGate(child: MessagesScreen()),
-      ),
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),

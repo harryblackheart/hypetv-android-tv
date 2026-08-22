@@ -14,6 +14,7 @@ import 'package:hypetv/widgets/brand_logo.dart';
 import 'package:hypetv/widgets/tv_button.dart';
 import 'package:hypetv/widgets/tv_action.dart';
 import 'package:hypetv/services/watch_history_service.dart';
+import 'package:hypetv/services/profile_service.dart';
 import 'package:hypetv/services/content_preferences_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -308,11 +309,11 @@ class _HeroBanner extends ConsumerWidget {
   }
 }
 
-class _TopNavigation extends StatelessWidget {
+class _TopNavigation extends ConsumerWidget {
   const _TopNavigation();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final compact = MediaQuery.sizeOf(context).width < 1100;
     return Row(
       children: [
@@ -337,6 +338,23 @@ class _TopNavigation extends StatelessWidget {
           tooltip: 'Favourites',
           onPressed: () => context.push('/favourites'),
           icon: const Icon(Icons.favorite_border_rounded, size: 30),
+          style: IconButton.styleFrom(backgroundColor: Colors.black54),
+        ),
+        const SizedBox(width: 12),
+        IconButton(
+          tooltip: 'Switch profile',
+          onPressed: () => context.push('/profiles?switch=1'),
+          icon: ref.watch(profileProvider).maybeWhen(
+            data: (value) => CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.red,
+              child: Text(
+                value.active.name.isEmpty ? '?' : value.active.name[0].toUpperCase(),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+              ),
+            ),
+            orElse: () => const Icon(Icons.account_circle_rounded, size: 32),
+          ),
           style: IconButton.styleFrom(backgroundColor: Colors.black54),
         ),
         const SizedBox(width: 12),
