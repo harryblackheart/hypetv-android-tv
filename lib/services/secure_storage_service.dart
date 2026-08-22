@@ -15,6 +15,7 @@ class SecureStorageService {
   static const _watchHistoryKey = 'watch_history';
   static const _favouritesKey = 'favourites';
   static const _playbackModeKey = 'playback_mode';
+  static const _messageHistoryKey = 'message_history';
   static const _profilesKey = 'profiles';
   static const _activeProfileIdKey = 'active_profile_id';
   static const _contentPreferencesKey = 'content_preferences';
@@ -40,6 +41,12 @@ class SecureStorageService {
       _storage.write(key: _favouritesKey, value: value);
 
   Future<String?> get playbackMode => _storage.read(key: _playbackModeKey);
+
+  Future<String?> get messageHistory =>
+      _storage.read(key: _messageHistoryKey);
+
+  Future<void> saveMessageHistory(String value) =>
+      _storage.write(key: _messageHistoryKey, value: value);
 
   Future<String?> get profiles => _storage.read(key: _profilesKey);
   Future<void> saveProfiles(String value) =>
