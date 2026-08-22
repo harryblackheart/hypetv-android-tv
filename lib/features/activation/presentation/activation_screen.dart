@@ -285,21 +285,36 @@ class _ActivationKeypad extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: compact ? 12 : 24),
-              Text(
-                compact
-                    ? 'Enter the code, then select ✓'
-                    : 'Use your remote to enter the code',
-                style: TextStyle(
-                  color: AppColors.muted,
-                  fontSize: compact ? 13 : 14,
+              SizedBox(height: compact ? 4 : 24),
+              if (!compact)
+                Text(
+                  'Use your remote to enter the code',
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
+              SizedBox(height: compact ? 0 : 12),
               TextButton.icon(
                 onPressed: () => context.push('/link-device'),
-                icon: const Icon(Icons.link_rounded),
-                label: const Text('Link to an existing HypeTV account'),
+                style: TextButton.styleFrom(
+                  visualDensity:
+                      compact ? VisualDensity.compact : VisualDensity.standard,
+                  tapTargetSize: compact
+                      ? MaterialTapTargetSize.shrinkWrap
+                      : MaterialTapTargetSize.padded,
+                  padding: compact
+                      ? const EdgeInsets.symmetric(horizontal: 8, vertical: 2)
+                      : null,
+                  minimumSize: compact ? const Size(0, 28) : null,
+                ),
+                icon: Icon(Icons.link_rounded, size: compact ? 16 : 20),
+                label: Text(
+                  compact
+                      ? 'Link existing account'
+                      : 'Link to an existing HypeTV account',
+                  style: TextStyle(fontSize: compact ? 12 : null),
+                ),
               ),
             ],
           ),
