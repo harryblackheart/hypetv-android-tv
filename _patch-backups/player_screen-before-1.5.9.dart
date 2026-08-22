@@ -52,9 +52,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   DateTime _lastPositionUiRefresh = DateTime.fromMillisecondsSinceEpoch(0);
-  DateTime _lastSeekKeyAt = DateTime.fromMillisecondsSinceEpoch(0);
-  int _seekRepeatCount = 0;
-  int _seekDirection = 0;
   Tracks _tracks = const Tracks();
   Track _track = const Track();
   BoxFit _videoFit = BoxFit.contain;
@@ -76,13 +73,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         enableHardwareAcceleration: true,
       ),
     );
-
-    // VOD smooth-playback tuning. Keep hardware decoding enabled, synchronise
-    // video to audio, and allow mpv to discard frames that arrive too late
-    // instead of accumulating visible judder.
-    if (!_isLive) {
-      unawaited(_applyVodPlaybackTuning());
-    }
     _subscriptions.addAll([
       _player.stream.playing.listen((value) {
         if (mounted) {
@@ -398,28 +388,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
-  Future<void> _applyVodPlaybackTuning() async {
-    // media_kit is backed by mpv. Individual properties are deliberately
-    // applied independently so an unsupported option on one device does not
-    // prevent playback or the remaining optimisations.
-    final options = <String, String>{
-      'video-sync': 'audio',
-      'framedrop': 'vo',
-      'interpolation': 'no',
-      'correct-downscaling': 'no',
-      'linear-downscaling': 'no',
-      'sigmoid-upscaling': 'no',
-    };
-
-    for (final entry in options.entries) {
-      try {
-        await _player.setProperty(entry.key, entry.value);
-      } catch (_) {
-        // Some Android/TV builds expose a smaller mpv property set.
-      }
-    }
-  }
-
   void _cycleVideoFit() {
     setState(() {
       _videoFit = switch (_videoFit) {
@@ -440,8 +408,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         content: Text(
           [
             if (_duration > Duration.zero) 'Duration: ${_formatDuration(_duration)}',
-            'Hardware acceleration: enabled (auto)',
-            'Smooth VOD mode: ${_isLive ? 'not used for Live TV' : 'enabled'}',
             'Audio tracks: ${_tracks.audio.where((track) => track.id != 'no').length}',
             'Subtitle tracks: ${_tracks.subtitle.where((track) => track.id != 'no').length}',
             'Video mode: ${_videoFit.name}',
@@ -492,62 +458,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  void _handleBackAction() {
-    if (_advancedVisible) {
-      setState(() => _advancedVisible = false);
-      _surfaceFocus.requestFocus();
-      return;
-    }
-    if (_controlsVisible) {
-      _controlsTimer?.cancel();
-      setState(() => _controlsVisible = false);
-      _surfaceFocus.requestFocus();
-      return;
-    }
-    unawaited(_stopAndPop());
-  }
-
-  Duration _acceleratedSeekStep(int direction, KeyEvent event) {
-    final now = DateTime.now();
-    final sameDirection = _seekDirection == direction;
-    final held = event is KeyRepeatEvent;
-    final withinBurst = now.difference(_lastSeekKeyAt) <
-        const Duration(milliseconds: 550);
-
-    if (!held || !sameDirection || !withinBurst) {
-      _seekRepeatCount = 0;
-    } else {
-      _seekRepeatCount++;
-    }
-
-    _seekDirection = direction;
-    _lastSeekKeyAt = now;
-
-    // A quick tap stays precise. Holding the key ramps up quickly so long
-    // films can be scrubbed without dozens of individual 30-second presses.
-    final seconds = _seekRepeatCount >= 10
-        ? 300
-        : _seekRepeatCount >= 6
-            ? 120
-            : _seekRepeatCount >= 3
-                ? 60
-                : 30;
-
-    return Duration(seconds: seconds * direction);
-  }
-
   KeyEventResult _onSurfaceKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
-    if (event is KeyDownEvent &&
-        (key == LogicalKeyboardKey.escape ||
-            key == LogicalKeyboardKey.goBack ||
-            key == LogicalKeyboardKey.browserBack)) {
-      _handleBackAction();
-      return KeyEventResult.handled;
-    }
     if (key == LogicalKeyboardKey.arrowUp) {
       _scheduleControls();
       _favouriteFocus.requestFocus();
@@ -558,17 +473,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return KeyEventResult.handled;
     }
     if (!_isLive && key == LogicalKeyboardKey.arrowLeft) {
-      if (!_controlsVisible) {
-        setState(() => _controlsVisible = true);
-      }
-      unawaited(_seek(_acceleratedSeekStep(-1, event)));
+      unawaited(_seek(const Duration(seconds: -30)));
       return KeyEventResult.handled;
     }
     if (!_isLive && key == LogicalKeyboardKey.arrowRight) {
-      if (!_controlsVisible) {
-        setState(() => _controlsVisible = true);
-      }
-      unawaited(_seek(_acceleratedSeekStep(1, event)));
+      unawaited(_seek(const Duration(seconds: 30)));
       return KeyEventResult.handled;
     }
     if (event is KeyDownEvent &&
@@ -593,9 +502,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       unawaited(_togglePlayback());
       return KeyEventResult.handled;
     }
-    // Do not reshow controls for unhandled keys. Android BACK is handled
-    // by PopScope; reshowing controls here caused Back to loop forever
-    // between visible and hidden controls instead of exiting playback.
+    _scheduleControls();
     return KeyEventResult.ignored;
   }
 
@@ -663,7 +570,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        _handleBackAction();
+        if (_advancedVisible) {
+          setState(() => _advancedVisible = false);
+          _surfaceFocus.requestFocus();
+          _scheduleControls();
+          return;
+        }
+        if (_controlsVisible) {
+          _controlsTimer?.cancel();
+          setState(() => _controlsVisible = false);
+          _surfaceFocus.requestFocus();
+          return;
+        }
+        unawaited(_stopAndPop());
       },
       child: Scaffold(
         backgroundColor: Colors.black,
