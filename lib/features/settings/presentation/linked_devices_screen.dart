@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hypetv/services/device_registry_service.dart';
-import 'package:hypetv/services/secure_storage_service.dart';
 
 class LinkedDevicesScreen extends ConsumerWidget {
   const LinkedDevicesScreen({super.key});
