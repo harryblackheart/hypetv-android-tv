@@ -76,13 +76,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         enableHardwareAcceleration: true,
       ),
     );
-
-    // VOD smooth-playback tuning. Keep hardware decoding enabled, synchronise
-    // video to audio, and allow mpv to discard frames that arrive too late
-    // instead of accumulating visible judder.
-    if (!_isLive) {
-      unawaited(_applyVodPlaybackTuning());
-    }
     _subscriptions.addAll([
       _player.stream.playing.listen((value) {
         if (mounted) {
@@ -397,29 +390,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     });
   }
-
-  Future<void> _applyVodPlaybackTuning() async {
-    // media_kit is backed by mpv. Individual properties are deliberately
-    // applied independently so an unsupported option on one device does not
-    // prevent playback or the remaining optimisations.
-    final options = <String, String>{
-      'video-sync': 'audio',
-      'framedrop': 'vo',
-      'interpolation': 'no',
-      'correct-downscaling': 'no',
-      'linear-downscaling': 'no',
-      'sigmoid-upscaling': 'no',
-    };
-
-    for (final entry in options.entries) {
-      try {
-        await _player.setProperty(entry.key, entry.value);
-      } catch (_) {
-        // Some Android/TV builds expose a smaller mpv property set.
-      }
-    }
-  }
-
   void _cycleVideoFit() {
     setState(() {
       _videoFit = switch (_videoFit) {
@@ -441,7 +411,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           [
             if (_duration > Duration.zero) 'Duration: ${_formatDuration(_duration)}',
             'Hardware acceleration: enabled (auto)',
-            'Smooth VOD mode: ${_isLive ? 'not used for Live TV' : 'enabled'}',
+            'Hardware decoder mode: auto',
             'Audio tracks: ${_tracks.audio.where((track) => track.id != 'no').length}',
             'Subtitle tracks: ${_tracks.subtitle.where((track) => track.id != 'no').length}',
             'Video mode: ${_videoFit.name}',
