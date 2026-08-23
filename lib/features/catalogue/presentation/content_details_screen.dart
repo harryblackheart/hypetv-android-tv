@@ -105,11 +105,6 @@ class _ContentDetailsScreenState extends ConsumerState<ContentDetailsScreen> {
     );
   }
 
-  String _episodeHeading(ContentItem episode, int index) {
-    final numbers = _episodeNumbers(episode, index);
-    return 'Season ${numbers.season} · Episode ${numbers.episode}';
-  }
-
   bool _sameEpisode(ContentItem left, ContentItem right) {
     if (left.id?.isNotEmpty == true && left.id == right.id) return true;
     if (left.playbackId?.isNotEmpty == true &&
