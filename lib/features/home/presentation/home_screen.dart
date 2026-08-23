@@ -83,7 +83,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       data: (shelves) {
-        final history = ref.watch(watchHistoryProvider).value ?? const [];
+        final history = (ref.watch(watchHistoryProvider).value ?? const [])
+            .where((item) => (item.progress ?? 0) < .95)
+            .toList(growable: false);
         final prefs = ref.watch(contentPreferencesProvider).value ?? const ContentPreferences();
         final contentShelves = shelves
             .map((shelf) => ContentShelf(

@@ -41,27 +41,26 @@ class WatchHistoryService {
     final progress = position.inMilliseconds / duration.inMilliseconds;
     final existing = await load();
     final updated = <ContentItem>[
-      if (progress < .95)
-        ContentItem(
-          id: item.id,
-          sourceId: item.sourceId,
-          playbackId: item.playbackId,
-          type: item.type,
-          title: item.title,
-          subtitle: item.subtitle,
-          imageUrl: item.imageUrl,
-          backdropUrl: item.backdropUrl,
-          description: item.description,
-          containerExtension: item.containerExtension,
-          badge: item.badge,
-          rating: item.rating,
-          year: item.year,
-          categoryId: item.categoryId,
-          isAdult: item.isAdult,
-          progress: progress.clamp(0.0, 1.0),
-        ),
+      ContentItem(
+        id: item.id,
+        sourceId: item.sourceId,
+        playbackId: item.playbackId,
+        type: item.type,
+        title: item.title,
+        subtitle: item.subtitle,
+        imageUrl: item.imageUrl,
+        backdropUrl: item.backdropUrl,
+        description: item.description,
+        containerExtension: item.containerExtension,
+        badge: item.badge,
+        rating: item.rating,
+        year: item.year,
+        categoryId: item.categoryId,
+        isAdult: item.isAdult,
+        progress: progress.clamp(0.0, 1.0),
+      ),
       ...existing.where((entry) => entry.id != item.id),
-    ].take(30).toList(growable: false);
+    ].take(60).toList(growable: false);
     await _storage.saveWatchHistory(
       jsonEncode(updated.map(_toJson).toList(growable: false)),
     );

@@ -218,17 +218,59 @@ class ContentItem {
 
   static List<ContentItem> _parseEpisodes(dynamic value) {
     final maps = <Map<String, dynamic>>[];
+
+    Map<String, dynamic> annotate(
+      Map<String, dynamic> source, {
+      String? season,
+      int? fallbackEpisode,
+    }) {
+      final copy = <String, dynamic>{...source};
+      final explicitSeason =
+          (copy['season'] ?? copy['season_number'] ?? season)?.toString();
+      final episodeNumber =
+          (copy['episode_num'] ?? copy['episode_number'] ?? copy['episode'] ?? fallbackEpisode)
+              ?.toString();
+      final existingBadge = copy['badge']?.toString().trim();
+      if ((existingBadge == null || existingBadge.isEmpty) &&
+          explicitSeason != null &&
+          explicitSeason.isNotEmpty &&
+          episodeNumber != null &&
+          episodeNumber.isNotEmpty) {
+        copy['badge'] = 'S${explicitSeason}E$episodeNumber';
+      }
+      return copy;
+    }
+
     if (value is List) {
-      maps.addAll(value.whereType<Map<String, dynamic>>());
+      for (var index = 0; index < value.length; index++) {
+        final episode = value[index];
+        if (episode is Map<String, dynamic>) {
+          maps.add(annotate(episode, fallbackEpisode: index + 1));
+        }
+      }
     } else if (value is Map) {
-      for (final season in value.values) {
-        if (season is List) {
-          maps.addAll(season.whereType<Map<String, dynamic>>());
-        } else if (season is Map<String, dynamic>) {
-          maps.add(season);
+      for (final entry in value.entries) {
+        final season = entry.key.toString();
+        final seasonValue = entry.value;
+        if (seasonValue is List) {
+          for (var index = 0; index < seasonValue.length; index++) {
+            final episode = seasonValue[index];
+            if (episode is Map<String, dynamic>) {
+              maps.add(
+                annotate(
+                  episode,
+                  season: season,
+                  fallbackEpisode: index + 1,
+                ),
+              );
+            }
+          }
+        } else if (seasonValue is Map<String, dynamic>) {
+          maps.add(annotate(seasonValue, season: season));
         }
       }
     }
+
     return maps
         .map((episode) {
           final info = episode['info'];
@@ -243,6 +285,7 @@ class ContentItem {
         .where((episode) => episode.id?.isNotEmpty == true)
         .toList(growable: false);
   }
+
 }
 
 class ContentShelf {
