@@ -89,6 +89,7 @@ class InterfaceSettingsScreen extends ConsumerWidget {
         entry.key: {...entry.value},
     };
     const groups = <String, String>{
+      'cinema': 'Sky Cinema',
       'sports': 'Sports',
       'kids': 'Kids',
       'entertainment': 'Entertainment',

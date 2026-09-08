@@ -279,6 +279,11 @@ class _SkyClassicHome extends ConsumerWidget {
               .toSet();
         }
 
+        final cinema = idsFor('cinema', [
+          'sky cinema',
+          'cinema',
+          'movie channel',
+        ]);
         final sports = idsFor('sports', ['sport', 'tnt', 'espn', 'dazn', 'ppv']);
         final kids = idsFor('kids', ['kids', 'child', 'junior', 'cartoon']);
         final entertainment = idsFor('entertainment', ['entertain', 'general', 'uk tv']);
@@ -322,12 +327,13 @@ class _SkyClassicHome extends ConsumerWidget {
                   children: [
                     _ClassicTile(title: 'TV Guide', icon: Icons.view_week_rounded, palette: palette, onPressed: () => context.push('/guide')),
                     _ClassicTile(title: 'Catch Up TV', icon: Icons.history_rounded, palette: palette, onPressed: () => context.push('/catchup')),
-                    _ClassicTile(title: 'Sky Cinema', icon: Icons.movie_filter_rounded, palette: palette, onPressed: () => context.push('/movies')),
-                    _ClassicTile(title: 'Kids', icon: Icons.child_care_rounded, palette: palette, onPressed: () => openMapped('Kids', kids)),
+                    _ClassicTile(title: 'Sky Cinema', icon: Icons.live_tv_rounded, palette: palette, onPressed: () => openMapped('Sky Cinema', cinema)),
                     _ClassicTile(title: 'Sports', icon: Icons.sports_soccer_rounded, palette: palette, onPressed: () => openMapped('Sports', sports)),
+                    _ClassicTile(title: 'Kids', icon: Icons.child_care_rounded, palette: palette, onPressed: () => openMapped('Kids', kids)),
                     _ClassicTile(title: 'Entertainment', icon: Icons.tv_rounded, palette: palette, onPressed: () => openMapped('Entertainment', entertainment)),
                     _ClassicTile(title: 'News', icon: Icons.newspaper_rounded, palette: palette, onPressed: () => openMapped('News', news)),
-                    _ClassicTile(title: 'Series', icon: Icons.video_library_rounded, palette: palette, onPressed: () => context.push('/series')),
+                    _ClassicTile(title: 'Movies', icon: Icons.movie_rounded, palette: palette, onPressed: () => context.push('/movies')),
+                    _ClassicTile(title: 'Shows', icon: Icons.video_library_rounded, palette: palette, onPressed: () => context.push('/series')),
                     _ClassicTile(title: 'Favourites', icon: Icons.favorite_rounded, palette: palette, onPressed: () => context.push('/favourites')),
                   ],
                 ),
