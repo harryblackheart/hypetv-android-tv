@@ -135,13 +135,19 @@ class _HomeFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 700;
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(54, 28, 54, 18),
-              child: _TopNavigation(),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                mobile ? 16 : 54,
+                mobile ? 12 : 28,
+                mobile ? 16 : 54,
+                mobile ? 10 : 18,
+              ),
+              child: const _TopNavigation(),
             ),
             Expanded(child: child),
           ],
@@ -170,8 +176,12 @@ class _LoadedHome extends ConsumerWidget {
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final horizontalPadding = math.max(48.0, constraints.maxWidth * .045);
-          final cardWidth = (constraints.maxWidth * .19).clamp(250.0, 420.0);
+          final mobile = constraints.maxWidth < 700;
+          final horizontalPadding =
+              mobile ? 16.0 : math.max(48.0, constraints.maxWidth * .045);
+          final cardWidth = mobile
+              ? (constraints.maxWidth * .42).clamp(145.0, 190.0)
+              : (constraints.maxWidth * .19).clamp(250.0, 420.0);
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
@@ -230,12 +240,16 @@ class _HeroBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final height = MediaQuery.sizeOf(context).height * .68;
+    final size = MediaQuery.sizeOf(context);
+    final mobile = size.width < 700;
+    final height = size.height * (mobile ? .52 : .68);
     final backdrop = item.backdropUrl?.isNotEmpty == true
         ? item.backdropUrl!
         : item.imageUrl;
     return SizedBox(
-      height: height.clamp(480.0, 760.0),
+      height: mobile
+          ? height.clamp(300.0, 480.0)
+          : height.clamp(480.0, 760.0),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -276,8 +290,9 @@ class _HeroBanner extends ConsumerWidget {
           ),
           Positioned(
             left: horizontalPadding,
-            bottom: 56,
-            width: 690,
+            right: mobile ? horizontalPadding : null,
+            bottom: mobile ? 26 : 56,
+            width: mobile ? null : 690,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -347,7 +362,9 @@ class _TopNavigation extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final compact = MediaQuery.sizeOf(context).width < 1100;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 1100;
+    final mobile = width < 700;
     return Row(
       children: [
         const BrandLogo(),
@@ -366,30 +383,38 @@ class _TopNavigation extends ConsumerWidget {
           icon: const Icon(Icons.search_rounded, size: 30),
           style: IconButton.styleFrom(backgroundColor: Colors.black54),
         ),
-        const SizedBox(width: 12),
-        IconButton(
-          tooltip: 'Favourites',
-          onPressed: () => context.push('/favourites'),
-          icon: const Icon(Icons.favorite_border_rounded, size: 30),
-          style: IconButton.styleFrom(backgroundColor: Colors.black54),
-        ),
-        const SizedBox(width: 12),
-        IconButton(
-          tooltip: 'Switch profile',
-          onPressed: () => context.push('/profiles?switch=1'),
-          icon: ref.watch(profileProvider).maybeWhen(
-            data: (value) => CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.red,
-              child: Text(
-                value.active.name.isEmpty ? '?' : value.active.name[0].toUpperCase(),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-              ),
-            ),
-            orElse: () => const Icon(Icons.account_circle_rounded, size: 32),
+        if (!mobile) ...[
+          const SizedBox(width: 12),
+          IconButton(
+            tooltip: 'Favourites',
+            onPressed: () => context.push('/favourites'),
+            icon: const Icon(Icons.favorite_border_rounded, size: 30),
+            style: IconButton.styleFrom(backgroundColor: Colors.black54),
           ),
-          style: IconButton.styleFrom(backgroundColor: Colors.black54),
-        ),
+          const SizedBox(width: 12),
+          IconButton(
+            tooltip: 'Switch profile',
+            onPressed: () => context.push('/profiles?switch=1'),
+            icon: ref.watch(profileProvider).maybeWhen(
+              data: (value) => CircleAvatar(
+                radius: 16,
+                backgroundColor: AppColors.red,
+                child: Text(
+                  value.active.name.isEmpty
+                      ? '?'
+                      : value.active.name[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              orElse: () =>
+                  const Icon(Icons.account_circle_rounded, size: 32),
+            ),
+            style: IconButton.styleFrom(backgroundColor: Colors.black54),
+          ),
+        ],
         const SizedBox(width: 12),
         IconButton(
           tooltip: 'Settings',

@@ -61,6 +61,18 @@ class _LayoutDashboard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = LayoutPalette.forLayout(layout);
+    final width = MediaQuery.sizeOf(context).width;
+    final mobileLayout = prefs.displayMode == DisplayMode.mobile ||
+        (prefs.displayMode == DisplayMode.automatic && width < 700);
+
+    if (mobileLayout) {
+      return _MobileLayoutDashboard(
+        layout: layout,
+        items: items,
+        palette: palette,
+      );
+    }
+
     return Scaffold(
       body: DecoratedBox(
         decoration: BoxDecoration(
@@ -108,6 +120,266 @@ class _LayoutDashboard extends ConsumerWidget {
               ),
             InterfaceLayout.hypetv => const SizedBox.shrink(),
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileLayoutDashboard extends StatelessWidget {
+  const _MobileLayoutDashboard({
+    required this.layout,
+    required this.items,
+    required this.palette,
+  });
+
+  final InterfaceLayout layout;
+  final List<ContentItem> items;
+  final LayoutPalette palette;
+
+  String get _label => switch (layout) {
+        InterfaceLayout.tivimate => 'TiviMate Style',
+        InterfaceLayout.sky => 'Sky Style',
+        InterfaceLayout.xc => 'XC IPTV Style',
+        InterfaceLayout.virgin => 'Virgin Media Style',
+        InterfaceLayout.skyClassic => 'Sky Classic',
+        InterfaceLayout.qpr => 'QPR Edition',
+        InterfaceLayout.hypetv => 'HypeTV',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final qpr = layout == InterfaceLayout.qpr;
+
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (qpr)
+            Image.asset(
+              'assets/qpr/loftus_road.jpg',
+              fit: BoxFit.cover,
+            ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: qpr
+                    ? const [
+                        Color(0xE600255A),
+                        Color(0xEE0A4E9A),
+                        Color(0xF5001B44),
+                      ]
+                    : [palette.background, palette.backgroundAlt],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final narrow = constraints.maxWidth < 430;
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    narrow ? 14 : 20,
+                    14,
+                    narrow ? 14 : 20,
+                    28,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          if (qpr) ...[
+                            Image.asset(
+                              'assets/qpr/qpr_crest.png',
+                              width: narrow ? 50 : 58,
+                              height: narrow ? 50 : 58,
+                              fit: BoxFit.contain,
+                            ),
+                            const SizedBox(width: 12),
+                          ] else
+                            const BrandLogo(fontSize: 28),
+                          if (!qpr) const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: narrow ? 17 : 20,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ),
+                          _TopIcon(
+                            icon: Icons.settings_rounded,
+                            route: '/settings',
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: narrow ? 16 : 22),
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: qpr ? 1.9 : 1.55,
+                        children: qpr
+                            ? const [
+                                _QprTile(
+                                  title: 'LIVE TV',
+                                  asset: 'assets/qpr/tiles/live_tv.png',
+                                  route: '/live',
+                                ),
+                                _QprTile(
+                                  title: 'TV GUIDE',
+                                  asset: 'assets/qpr/tiles/tv_guide.png',
+                                  route: '/guide',
+                                ),
+                                _QprTile(
+                                  title: 'MOVIES',
+                                  asset: 'assets/qpr/tiles/movies.png',
+                                  route: '/movies',
+                                ),
+                                _QprTile(
+                                  title: 'SERIES',
+                                  asset: 'assets/qpr/tiles/series.png',
+                                  route: '/series',
+                                ),
+                              ]
+                            : [
+                                _MobileThemeTile(
+                                  title: 'Live TV',
+                                  icon: Icons.live_tv_rounded,
+                                  route: '/live',
+                                  palette: palette,
+                                ),
+                                _MobileThemeTile(
+                                  title: 'TV Guide',
+                                  icon: Icons.view_week_rounded,
+                                  route: '/guide',
+                                  palette: palette,
+                                ),
+                                _MobileThemeTile(
+                                  title: 'Movies',
+                                  icon: Icons.movie_rounded,
+                                  route: '/movies',
+                                  palette: palette,
+                                ),
+                                _MobileThemeTile(
+                                  title: 'Series',
+                                  icon: Icons.video_library_rounded,
+                                  route: '/series',
+                                  palette: palette,
+                                ),
+                              ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: const [
+                          _QprShortcut(
+                            label: 'Catch Up',
+                            icon: Icons.history_rounded,
+                            route: '/catchup',
+                          ),
+                          _QprShortcut(
+                            label: 'Favourites',
+                            icon: Icons.favorite_rounded,
+                            route: '/favourites',
+                          ),
+                          _QprShortcut(
+                            label: 'Search',
+                            icon: Icons.search_rounded,
+                            route: '/search',
+                          ),
+                          _QprShortcut(
+                            label: 'Settings',
+                            icon: Icons.settings_rounded,
+                            route: '/settings',
+                          ),
+                        ],
+                      ),
+                      if (items.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'Continue Watching & Top Picks',
+                          style: TextStyle(
+                            fontSize: narrow ? 18 : 21,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: narrow ? 110 : 125,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: items.take(12).length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (_, index) =>
+                                _MiniContentCard(item: items[index]),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileThemeTile extends StatelessWidget {
+  const _MobileThemeTile({
+    required this.title,
+    required this.icon,
+    required this.route,
+    required this.palette,
+  });
+
+  final String title;
+  final IconData icon;
+  final String route;
+  final LayoutPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return _FocusButton(
+      onPressed: () => context.push(route),
+      focusColor: palette.focus,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.surfaceRaised,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 38, color: Colors.white),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
         ),
       ),
     );
