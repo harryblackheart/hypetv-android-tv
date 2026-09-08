@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hypetv/services/secure_storage_service.dart';
 
-
 enum DisplayMode {
   automatic,
   tv,
@@ -37,6 +36,33 @@ enum StartScreen {
       };
 }
 
+enum InterfaceLayout {
+  hypetv,
+  tivimate,
+  sky,
+  xc,
+  virgin,
+  skyClassic;
+
+  String get label => switch (this) {
+        hypetv => 'HypeTV Original',
+        tivimate => 'TiviMate Style',
+        sky => 'Sky Style',
+        xc => 'XC IPTV Style',
+        virgin => 'Virgin Media Style',
+        skyClassic => 'Sky Classic',
+      };
+
+  String get description => switch (this) {
+        hypetv => 'The current HypeTV interface.',
+        tivimate => 'Dark TV-first navigation with a dense guide layout.',
+        sky => 'Blue glass interface with large programme presentation.',
+        xc => 'Tile-led IPTV dashboard with quick access to content.',
+        virgin => 'Dark aubergine TV interface with guide-first navigation.',
+        skyClassic => 'Old-school blue TV launcher with yellow focus highlights.',
+      };
+}
+
 class ContentPreferences {
   const ContentPreferences({
     this.startScreen = StartScreen.landing,
@@ -46,6 +72,8 @@ class ContentPreferences {
     this.hiddenLiveGroups = const <String>{},
     this.displayMode = DisplayMode.automatic,
     this.deviceName = 'HypeTV Device',
+    this.interfaceLayout = InterfaceLayout.hypetv,
+    this.skyClassicMappings = const <String, Set<String>>{},
   });
 
   final StartScreen startScreen;
@@ -55,6 +83,8 @@ class ContentPreferences {
   final Set<String> hiddenLiveGroups;
   final DisplayMode displayMode;
   final String deviceName;
+  final InterfaceLayout interfaceLayout;
+  final Map<String, Set<String>> skyClassicMappings;
 
   ContentPreferences copyWith({
     StartScreen? startScreen,
@@ -64,7 +94,10 @@ class ContentPreferences {
     Set<String>? hiddenLiveGroups,
     DisplayMode? displayMode,
     String? deviceName,
-  }) => ContentPreferences(
+    InterfaceLayout? interfaceLayout,
+    Map<String, Set<String>>? skyClassicMappings,
+  }) =>
+      ContentPreferences(
         startScreen: startScreen ?? this.startScreen,
         showLive: showLive ?? this.showLive,
         showMovies: showMovies ?? this.showMovies,
@@ -72,6 +105,8 @@ class ContentPreferences {
         hiddenLiveGroups: hiddenLiveGroups ?? this.hiddenLiveGroups,
         displayMode: displayMode ?? this.displayMode,
         deviceName: deviceName ?? this.deviceName,
+        interfaceLayout: interfaceLayout ?? this.interfaceLayout,
+        skyClassicMappings: skyClassicMappings ?? this.skyClassicMappings,
       );
 
   Map<String, dynamic> toJson() => {
@@ -82,11 +117,26 @@ class ContentPreferences {
         'hidden_live_groups': hiddenLiveGroups.toList(),
         'display_mode': displayMode.name,
         'device_name': deviceName,
+        'interface_layout': interfaceLayout.name,
+        'sky_classic_mappings': skyClassicMappings.map(
+          (key, value) => MapEntry(key, value.toList()),
+        ),
       };
 
   factory ContentPreferences.fromJson(Map<String, dynamic> json) {
     final startName = json['start_screen']?.toString();
     final displayName = json['display_mode']?.toString();
+    final interfaceName = json['interface_layout']?.toString();
+    final rawMappings = json['sky_classic_mappings'];
+    final mappings = <String, Set<String>>{};
+    if (rawMappings is Map) {
+      for (final entry in rawMappings.entries) {
+        if (entry.value is List) {
+          mappings[entry.key.toString()] =
+              (entry.value as List).map((value) => value.toString()).toSet();
+        }
+      }
+    }
     return ContentPreferences(
       startScreen: StartScreen.values.firstWhere(
         (value) => value.name == startName,
@@ -107,6 +157,11 @@ class ContentPreferences {
         (value) => value.name == displayName,
         orElse: () => DisplayMode.automatic,
       ),
+      interfaceLayout: InterfaceLayout.values.firstWhere(
+        (value) => value.name == interfaceName,
+        orElse: () => InterfaceLayout.hypetv,
+      ),
+      skyClassicMappings: mappings,
     );
   }
 }

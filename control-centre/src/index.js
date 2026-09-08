@@ -219,7 +219,9 @@ function normalItem(item, type) {
     is_adult:Boolean(Number(item.is_adult||0)),
     badge:null,
     container_extension:item.container_extension ?? null,
-    added:item.added ?? null
+    added:item.added ?? null,
+    catchup:Boolean(Number(item.tv_archive ?? item.catchup ?? item.has_catchup ?? 0)),
+    catchup_days:Number.parseInt(item.tv_archive_duration ?? item.catchup_days ?? item.archive_days ?? 0,10)||0
   };
 }
 function categoryItem(item) { return { id:String(item.category_id ?? item.id ?? ''), name:String(item.category_name ?? item.name ?? '') }; }
@@ -642,7 +644,26 @@ export default {
       const seriesDetail=url.pathname.match(/^\/api\/catalog\/series\/([^/]+)$/);
       if(seriesDetail && request.method==='GET') { const auth=await authenticatedContext(request,env,true); if(auth.error)return auth.error; try{return json({success:true,data:await cachedProvider(env,auth.source,'get_series_info',{series_id:clean(seriesDetail[1],50)},600)});}catch(e){const [c,m,st]=upstreamError(e);return errorJson(c,m,st);} }
       const epgDetail=url.pathname.match(/^\/api\/catalog\/epg\/([^/]+)$/);
-      if(epgDetail && request.method==='GET') { const auth=await authenticatedContext(request,env,true); if(auth.error)return auth.error; try{return json({success:true,data:await cachedProvider(env,auth.source,'get_short_epg',{stream_id:clean(epgDetail[1],50),limit:int(url.searchParams.get('limit'),10,1,100)},60)});}catch(e){const [c,m,st]=upstreamError(e);return errorJson(c,m,st);} }
+      if(epgDetail && request.method==='GET') {
+        const auth=await authenticatedContext(request,env,true); if(auth.error)return auth.error;
+        try{
+          const streamId=clean(epgDetail[1],50);
+          const limit=int(url.searchParams.get('limit'),12,1,2000);
+          const includePast=url.searchParams.get('include_past')==='1';
+          const action=includePast?'get_simple_data_table':'get_short_epg';
+          const raw=await cachedProvider(
+            env,
+            auth.source,
+            action,
+            includePast?{stream_id:streamId}:{stream_id:streamId,limit},
+            60
+          );
+          let listings=Array.isArray(raw)?raw:(raw?.epg_listings||raw?.listings||[]);
+          if(!Array.isArray(listings))listings=[];
+          if(limit>0 && listings.length>limit) listings=listings.slice(-limit);
+          return json({success:true,data:{epg_listings:listings}});
+        }catch(e){const [c,m,st]=upstreamError(e);return errorJson(c,m,st);}
+      }
       if(url.pathname==='/api/catalog/search' && request.method==='GET') {
         const auth=await authenticatedContext(request,env,true); if(auth.error)return auth.error;
         if(!(await rateLimit(env,`search:${auth.device.id}`,30,60)))return errorJson('RATE_LIMITED','Too many search requests.',429);
@@ -650,6 +671,31 @@ export default {
         if(q.length<2)return errorJson('INVALID_REQUEST','Search query must contain at least two characters.',400);
         try{const kinds=wanted&&['live','movie','series'].includes(wanted)?[wanted]:['live','movie','series'];const actions={live:'get_live_streams',movie:'get_vod_streams',series:'get_series'};let out=[];for(const kind of kinds){const raw=await cachedProvider(env,auth.source,actions[kind],{},kind==='live'?120:300);out.push(...(Array.isArray(raw)?raw:[]).filter(x=>String(x.name||x.title||'').toLowerCase().includes(q)).slice(0,50).map(x=>normalItem(x,kind)));}return json({success:true,data:out.slice(0,100)});}catch(e){const [c,m,st]=upstreamError(e);return errorJson(c,m,st);}
       }
+      if(url.pathname==='/api/playback/catchup' && request.method==='POST') {
+        const auth=await authenticatedContext(request,env,true); if(auth.error)return auth.error;
+        const d=await readBody(request);
+        const id=clean(d.content_id,80);
+        const start=Number(d.start_timestamp||0);
+        const end=Number(d.end_timestamp||0);
+        const requested=clean(d.container_extension,10).toLowerCase();
+        if(!/^[A-Za-z0-9_-]+$/.test(id)||!Number.isFinite(start)||!Number.isFinite(end)||end<=start){
+          return errorJson('INVALID_REQUEST','Invalid catch-up playback request.',400);
+        }
+        const duration=Math.max(1,Math.ceil((end-start)/60));
+        const dt=new Date(start*1000);
+        const pad=n=>String(n).padStart(2,'0');
+        const startText=dt.getUTCFullYear()+'-'+pad(dt.getUTCMonth()+1)+'-'+pad(dt.getUTCDate())+':'+pad(dt.getUTCHours())+'-'+pad(dt.getUTCMinutes());
+        const ext=['ts','m3u8'].includes(requested)?requested:'ts';
+        const base=normaliseServiceUrl(auth.source.service_url);
+        const user=encodeURIComponent(auth.source.service_username);
+        const pass=encodeURIComponent(auth.source.service_password);
+        return json({success:true,playback:{
+          url:base+'/timeshift/'+user+'/'+pass+'/'+duration+'/'+encodeURIComponent(startText)+'/'+encodeURIComponent(id)+'.'+ext,
+          expires_at:new Date(Date.now()+5*60*1000).toISOString(),
+          headers:{'User-Agent':auth.source.user_agent||'HypeTV'}
+        }});
+      }
+
       if(url.pathname==='/api/playback/resolve' && request.method==='POST') {
         const auth=await authenticatedContext(request,env,true); if(auth.error)return auth.error;
         const d=await readBody(request), type=clean(d.content_type,20), id=clean(d.content_id,80), requested=clean(d.container_extension,10).toLowerCase();

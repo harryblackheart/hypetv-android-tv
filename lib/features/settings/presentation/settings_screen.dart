@@ -383,6 +383,14 @@ class SettingsScreen extends ConsumerWidget {
                         const SizedBox(height: 16),
                         const _DeviceNameTile(),
                         const SizedBox(height: 16),
+                        _SettingsTile(
+                          icon: Icons.dashboard_customize_rounded,
+                          title: 'Interface / Layout',
+                          subtitle: 'HypeTV, TiviMate, Sky, XC, Virgin and Sky Classic',
+                          actionLabel: 'Choose',
+                          onPressed: () => context.push('/interface'),
+                        ),
+                        const SizedBox(height: 16),
                         const _DisplayModeTile(),
                         const SizedBox(height: 16),
                         _SettingsTile(

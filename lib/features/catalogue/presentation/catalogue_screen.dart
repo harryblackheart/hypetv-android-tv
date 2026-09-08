@@ -29,7 +29,7 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
   Object? _error;
   var _loading = true;
 
-  bool get _requiresCategory => widget.type != CatalogueType.live;
+  bool get _requiresCategory => true;
 
   static const _favouritesCategory = '__favourites__';
   static const _continueCategory = '__continue__';
@@ -142,6 +142,20 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
                   const Spacer(),
+                  if (widget.type == CatalogueType.live) ...[
+                    FilledButton.icon(
+                      onPressed: () => context.push('/catchup'),
+                      icon: const Icon(Icons.history_rounded),
+                      label: const Text('Catch-up'),
+                    ),
+                    const SizedBox(width: 10),
+                    FilledButton.icon(
+                      onPressed: () => context.push('/guide'),
+                      icon: const Icon(Icons.calendar_view_week_rounded),
+                      label: const Text('Guide'),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   IconButton(
                     tooltip: 'Search',
                     onPressed: () => context.push(

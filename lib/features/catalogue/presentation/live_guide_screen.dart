@@ -1,18 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
 import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
+import 'package:hypetv/services/content_preferences_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
 class LiveGuideScreen extends ConsumerStatefulWidget {
   const LiveGuideScreen({this.initialChannel, super.key});
-
   final ContentItem? initialChannel;
 
   @override
@@ -20,412 +19,178 @@ class LiveGuideScreen extends ConsumerStatefulWidget {
 }
 
 class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
-  static const _guideDays = <int>[1, 3, 7, 14];
-  var _days = 14;
-  List<CatalogueCategory> _categories = const [];
-  List<ContentItem> _channels = const [];
-  String? _categoryId;
-  bool _loading = true;
-  Object? _error;
+  static const guideDays = <int>[1, 3, 7, 14];
+  var days = 7;
+  var categories = const <CatalogueCategory>[];
+  var channels = const <ContentItem>[];
+  String? categoryId;
+  bool loading = true;
+  Object? error;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_load(categoryId: widget.initialChannel?.categoryId));
+    unawaited(load(categoryId: widget.initialChannel?.categoryId));
   }
 
-  Future<void> _load({String? categoryId}) async {
+  Future<void> load({String? categoryId}) async {
     setState(() {
-      _loading = true;
-      _error = null;
+      loading = true;
+      error = null;
     });
     try {
       final service = ref.read(catalogueServiceProvider);
-      final categories = await service.fetchCategories(CatalogueType.live);
-      final fetchedChannels = await service.fetchItems(
-        CatalogueType.live,
-        categoryId: categoryId,
-      );
-      final channels = fetchedChannels.toList();
+      final fetchedCategories = await service.fetchCategories(CatalogueType.live);
+      var effective = categoryId;
+      if ((effective == null || effective.isEmpty) && fetchedCategories.isNotEmpty) {
+        effective = fetchedCategories.first.id;
+      }
+      final fetched = effective == null
+          ? const <ContentItem>[]
+          : await service.fetchItems(
+              CatalogueType.live,
+              categoryId: effective,
+              page: 1,
+              limit: 500,
+            );
+      final list = fetched.toList();
       if (widget.initialChannel != null) {
-        final index = channels.indexWhere((item) => item.upstreamId == widget.initialChannel!.upstreamId);
+        final index =
+            list.indexWhere((item) => item.upstreamId == widget.initialChannel!.upstreamId);
         if (index > 0) {
-          final selected = channels.removeAt(index);
-          channels.insert(0, selected);
+          final selected = list.removeAt(index);
+          list.insert(0, selected);
         }
       }
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
-        _categories = categories;
-        _channels = channels;
-        _categoryId = categoryId;
-        _loading = false;
+        categories = fetchedCategories;
+        channels = list;
+        this.categoryId = effective;
+        loading = false;
       });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _error = error;
-        _loading = false;
+        error = e;
+        loading = false;
       });
     }
   }
 
-  Future<void> _playCatchup(ContentItem channel, EpgEntry entry) async {
+  Future<void> playCatchup(ContentItem channel, EpgEntry entry) async {
     try {
-      final source = await ref
-          .read(catalogueServiceProvider)
-          .resolveCatchup(channel, entry);
-      if (!mounted) {
-        return;
-      }
+      final source =
+          await ref.read(catalogueServiceProvider).resolveCatchup(channel, entry);
+      if (!mounted) return;
       await context.push(
         '/player',
         extra: PlayerArguments(source: source, item: channel),
       );
-    } on CatalogueException catch (error) {
-      if (!mounted) {
-        return;
-      }
+    } on CatalogueException catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(error.userMessage)));
+        ..showSnackBar(SnackBar(content: Text(e.userMessage)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final prefs =
+        ref.watch(contentPreferencesProvider).value ?? const ContentPreferences();
+    final palette = LayoutPalette.forLayout(prefs.interfaceLayout);
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(48, 24, 48, 12),
-              child: Row(
-                children: [
-                  IconButton.filledTonal(
-                    autofocus: true,
-                    tooltip: 'Back',
-                    onPressed: context.pop,
-                    icon: const Icon(Icons.arrow_back_rounded),
-                  ),
-                  const SizedBox(width: 18),
-                  const BrandLogo(fontSize: 30),
-                  const SizedBox(width: 24),
-                  Text(
-                    'TV Guide',
-                    style: Theme.of(context).textTheme.headlineLarge,
-                  ),
-                  const Spacer(),
-                  DropdownButton<int>(
-                    value: _days,
-                    items: [
-                      for (final days in _guideDays)
-                        DropdownMenuItem(value: days, child: Text('$days days')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) setState(() => _days = value);
-                    },
-                  ),
-                  const SizedBox(width: 14),
-                  IconButton(
-                    tooltip: 'Refresh guide',
-                    onPressed: () => _load(categoryId: _categoryId),
-                    icon: const Icon(Icons.refresh_rounded, size: 30),
-                  ),
-                ],
-              ),
-            ),
-            if (_categories.isNotEmpty)
-              SizedBox(
-                height: 58,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 48),
-                  children: [
-                    _GuideCategoryChip(
-                      label: 'All',
-                      selected: _categoryId == null,
-                      onPressed: () => _load(),
-                    ),
-                    for (final category in _categories)
-                      _GuideCategoryChip(
-                        label: category.name,
-                        selected: _categoryId == category.id,
-                        onPressed: () => _load(categoryId: category.id),
-                      ),
-                  ],
-                ),
-              ),
-            const Divider(height: 1),
-            Expanded(
-              child: switch ((_loading, _error, _channels.isEmpty)) {
-                (true, _, _) => const Center(child: CircularProgressIndicator()),
-                (false, Object(), _) => const Center(
-                    child: Text('The TV guide could not be loaded.'),
-                  ),
-                (false, null, true) => const Center(
-                    child: Text('No live channels are available in this group.'),
-                  ),
-                _ => ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(48, 18, 48, 50),
-                    itemCount: _channels.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) => _GuideChannelRow(
-                      channel: _channels[index],
-                      autofocus: index == 0,
-                      days: _days,
-                      onCatchup: _playCatchup,
-                    ),
-                  ),
-              },
-            ),
-          ],
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [palette.background, palette.backgroundAlt],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _GuideChannelRow extends ConsumerWidget {
-  const _GuideChannelRow({
-    required this.channel,
-    required this.autofocus,
-    required this.days,
-    required this.onCatchup,
-  });
-
-  final ContentItem channel;
-  final bool autofocus;
-  final int days;
-  final Future<void> Function(ContentItem, EpgEntry) onCatchup;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      height: 132,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: 250,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(38, 20, 38, 10),
                 child: Row(
                   children: [
-                    SizedBox.square(
-                      dimension: 64,
-                      child: channel.imageUrl.isEmpty
-                          ? const Icon(Icons.live_tv_rounded, size: 34)
-                          : Image.network(
-                              channel.imageUrl,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, _, _) =>
-                                  const Icon(Icons.live_tv_rounded, size: 34),
-                            ),
+                    IconButton.filledTonal(
+                      autofocus: true,
+                      onPressed: context.pop,
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    const SizedBox(width: 16),
+                    const BrandLogo(fontSize: 28),
+                    const SizedBox(width: 22),
+                    Text('TV Guide', style: Theme.of(context).textTheme.headlineLarge),
+                    const Spacer(),
+                    DropdownButton<int>(
+                      value: days,
+                      items: [
+                        for (final value in guideDays)
+                          DropdownMenuItem(value: value, child: Text('$value days')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setState(() => days = value);
+                      },
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            channel.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          if (channel.catchupAvailable) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                const Icon(Icons.history_rounded, size: 18),
-                                const SizedBox(width: 5),
-                                Text(
-                                  channel.catchupDays > 0
-                                      ? '${channel.catchupDays} day catch-up'
-                                      : 'Catch-up',
-                                  style: const TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
+                    IconButton(
+                      onPressed: () => load(categoryId: categoryId),
+                      icon: const Icon(Icons.refresh_rounded),
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: FutureBuilder<List<EpgEntry>>(
-              future: ref
-                  .read(catalogueServiceProvider)
-                  .fetchEpg(channel, limit: 2000, includePast: true, days: days),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(child: LinearProgressIndicator());
-                }
-                final entries = snapshot.data ?? const <EpgEntry>[];
-                if (entries.isEmpty) {
-                  return const Center(child: Text('No guide data'));
-                }
-                return ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: entries.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 10),
-                  itemBuilder: (context, index) {
-                    final entry = entries[index];
-                    final playable = channel.catchupAvailable && entry.isPast;
-                    return _ProgrammeCard(
-                      entry: entry,
-                      autofocus: autofocus && index == 0,
-                      catchup: playable,
-                      onPressed: () async {
-                        if (playable) {
-                          unawaited(onCatchup(channel, entry));
-                          return;
-                        }
-                        try {
-                          final source = await ref.read(catalogueServiceProvider).resolvePlayback(channel);
-                          if (context.mounted) {
-                            await context.push('/player', extra: PlayerArguments(source: source, item: channel));
-                          }
-                        } catch (_) {}
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProgrammeCard extends StatefulWidget {
-  const _ProgrammeCard({
-    required this.entry,
-    required this.autofocus,
-    required this.catchup,
-    this.onPressed,
-  });
-
-  final EpgEntry entry;
-  final bool autofocus;
-  final bool catchup;
-  final VoidCallback? onPressed;
-
-  @override
-  State<_ProgrammeCard> createState() => _ProgrammeCardState();
-}
-
-class _ProgrammeCardState extends State<_ProgrammeCard> {
-  var _focused = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final time = [
-      if (widget.entry.start != null) _clock(widget.entry.start!),
-      if (widget.entry.end != null) _clock(widget.entry.end!),
-    ].join(' – ');
-    return Focus(
-      autofocus: widget.autofocus,
-      descendantsAreFocusable: false,
-      canRequestFocus: true,
-      onFocusChange: (value) {
-        setState(() => _focused = value);
-        if (value) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              Scrollable.ensureVisible(
-                context,
-                alignment: .45,
-                duration: const Duration(milliseconds: 180),
-              );
-            }
-          });
-        }
-      },
-      onKeyEvent: (_, event) {
-        if (event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.select ||
-                event.logicalKey == LogicalKeyboardKey.enter) &&
-            widget.onPressed != null) {
-          widget.onPressed!();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: InkWell(
-        onTap: widget.onPressed,
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: 260,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: widget.entry.isCurrent
-                ? AppColors.red.withValues(alpha: .18)
-                : AppColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: _focused
-                  ? Colors.white
-                  : widget.entry.isCurrent
-                      ? AppColors.red
-                      : Colors.white12,
-              width: _focused ? 3 : 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      time,
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 12,
-                      ),
-                    ),
+              if (categories.isNotEmpty)
+                SizedBox(
+                  height: 54,
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 38, vertical: 6),
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      for (final category in categories)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(category.name),
+                            selected: categoryId == category.id,
+                            selectedColor: palette.accent,
+                            onSelected: (_) => load(categoryId: category.id),
+                          ),
+                        ),
+                    ],
                   ),
-                  if (widget.catchup)
-                    const Icon(Icons.history_rounded, size: 18),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.entry.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const Spacer(),
-              if (widget.catchup)
-                const Text(
-                  'Press OK to watch',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
+              const Divider(height: 1),
+              Expanded(
+                child: loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : error != null
+                        ? Center(
+                            child: FilledButton.icon(
+                              onPressed: () => load(categoryId: categoryId),
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Retry guide'),
+                            ),
+                          )
+                        : channels.isEmpty
+                            ? const Center(child: Text('No live channels in this bouquet.'))
+                            : ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(38, 14, 38, 50),
+                                itemCount: channels.length,
+                                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                                itemBuilder: (context, index) => _GuideRow(
+                                  channel: channels[index],
+                                  autofocus: index == 0,
+                                  days: days,
+                                  palette: palette,
+                                  onCatchup: playCatchup,
+                                ),
+                              ),
+              ),
             ],
           ),
         ),
@@ -434,26 +199,165 @@ class _ProgrammeCardState extends State<_ProgrammeCard> {
   }
 }
 
-class _GuideCategoryChip extends StatelessWidget {
-  const _GuideCategoryChip({
-    required this.label,
-    required this.selected,
+class _GuideRow extends ConsumerWidget {
+  const _GuideRow({
+    required this.channel,
+    required this.autofocus,
+    required this.days,
+    required this.palette,
+    required this.onCatchup,
+  });
+
+  final ContentItem channel;
+  final bool autofocus;
+  final int days;
+  final LayoutPalette palette;
+  final Future<void> Function(ContentItem, EpgEntry) onCatchup;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => SizedBox(
+        height: 112,
+        child: Row(
+          children: [
+            Container(
+              width: 245,
+              decoration: BoxDecoration(
+                color: palette.surface.withValues(alpha: .9),
+                border: Border.all(color: Colors.white12),
+              ),
+              padding: const EdgeInsets.all(10),
+              child: Row(
+                children: [
+                  SizedBox.square(
+                    dimension: 52,
+                    child: channel.imageUrl.isEmpty
+                        ? const Icon(Icons.live_tv_rounded)
+                        : Image.network(
+                            channel.imageUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const Icon(Icons.live_tv_rounded),
+                          ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      channel.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  if (channel.catchupAvailable)
+                    const Icon(Icons.history_rounded, size: 18),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FutureBuilder<List<EpgEntry>>(
+                future: ref
+                    .read(catalogueServiceProvider)
+                    .fetchEpg(channel, limit: 2000, includePast: true, days: days),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const LinearProgressIndicator();
+                  }
+                  final entries = snapshot.data ?? const <EpgEntry>[];
+                  if (entries.isEmpty) return const Center(child: Text('No guide data'));
+                  return ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: entries.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 6),
+                    itemBuilder: (context, index) {
+                      final entry = entries[index];
+                      final catchup = channel.catchupAvailable && entry.isPast;
+                      return _Programme(
+                        entry: entry,
+                        palette: palette,
+                        autofocus: autofocus && index == 0,
+                        catchup: catchup,
+                        onPressed: () async {
+                          if (catchup) {
+                            await onCatchup(channel, entry);
+                            return;
+                          }
+                          try {
+                            final source = await ref
+                                .read(catalogueServiceProvider)
+                                .resolvePlayback(channel);
+                            if (context.mounted) {
+                              await context.push(
+                                '/player',
+                                extra: PlayerArguments(source: source, item: channel),
+                              );
+                            }
+                          } catch (_) {}
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _Programme extends StatelessWidget {
+  const _Programme({
+    required this.entry,
+    required this.palette,
+    required this.autofocus,
+    required this.catchup,
     required this.onPressed,
   });
 
-  final String label;
-  final bool selected;
+  final EpgEntry entry;
+  final LayoutPalette palette;
+  final bool autofocus;
+  final bool catchup;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 10, top: 6, bottom: 6),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onPressed(),
-        selectedColor: AppColors.red,
+    final time = [
+      if (entry.start != null) _clock(entry.start!),
+      if (entry.end != null) _clock(entry.end!),
+    ].join(' – ');
+    return SizedBox(
+      width: 255,
+      child: Card(
+        color: entry.isCurrent ? palette.accent.withValues(alpha: .35) : palette.surface,
+        child: InkWell(
+          autofocus: autofocus,
+          onTap: onPressed,
+          focusColor: palette.focus.withValues(alpha: .18),
+          child: Padding(
+            padding: const EdgeInsets.all(11),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: Text(time, style: const TextStyle(fontSize: 12, color: Colors.white70))),
+                    if (catchup) const Icon(Icons.history_rounded, size: 17),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  entry.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const Spacer(),
+                if (entry.isCurrent)
+                  const Text('NOW', style: TextStyle(fontWeight: FontWeight.w900)),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
