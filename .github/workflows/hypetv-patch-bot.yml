@@ -1,0 +1,124 @@
+name: HypeTV Patch Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      patch_url:
+        description: 'HTTPS URL to a ZIP containing update-files/'
+        required: true
+        type: string
+      commit_message:
+        description: 'Commit message'
+        required: false
+        default: 'chore: apply HypeTV automated update'
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hypetv-patch-bot
+  cancel-in-progress: false
+
+jobs:
+  apply-validate-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate patch URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='${{ inputs.patch_url }}'
+          case "$URL" in
+            https://*) ;;
+            *) echo "Patch URL must use HTTPS"; exit 1 ;;
+          esac
+
+      - name: Download patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            '${{ inputs.patch_url }}' -o /tmp/hypetv-patch.zip
+          mkdir -p /tmp/hypetv-patch
+          unzip -q /tmp/hypetv-patch.zip -d /tmp/hypetv-patch
+
+      - name: Locate and validate update-files
+        id: patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          PATCH_DIR="$(find /tmp/hypetv-patch -type d -name update-files -print -quit)"
+          test -n "$PATCH_DIR"
+          echo "dir=$PATCH_DIR" >> "$GITHUB_OUTPUT"
+
+          # Refuse patches that try to alter GitHub automation or Git metadata.
+          if find "$PATCH_DIR" \( -path '*/.git/*' -o -path '*/.github/*' \) -print -quit | grep -q .; then
+            echo "Patch contains forbidden .git/.github content"
+            exit 1
+          fi
+
+      - name: Apply patch
+        shell: bash
+        env:
+          PATCH_DIR: ${{ steps.patch.outputs.dir }}
+        run: |
+          set -euo pipefail
+          cp -a "$PATCH_DIR"/. .
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Format
+        run: dart format lib test
+
+      - name: Analyse
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Commit validated patch
+        shell: bash
+        env:
+          COMMIT_MESSAGE: ${{ inputs.commit_message }}
+        run: |
+          set -euo pipefail
+          git config user.name "HypeTV Patch Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Patch produced no changes."
+            exit 0
+          fi
+
+          git commit -m "$COMMIT_MESSAGE"
+          git push origin HEAD:main
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## HypeTV Patch Bot" >> "$GITHUB_STEP_SUMMARY"
+          echo "Patch validation complete. A commit is only pushed when format/analyse/tests pass." >> "$GITHUB_STEP_SUMMARY"
