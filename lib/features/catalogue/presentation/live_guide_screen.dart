@@ -263,7 +263,9 @@ class _GuideRow extends ConsumerWidget {
                     return const LinearProgressIndicator();
                   }
                   final entries = snapshot.data ?? const <EpgEntry>[];
-                  if (entries.isEmpty) return const Center(child: Text('No guide data'));
+                  if (entries.isEmpty) {
+                    return const Center(child: Text('No guide data'));
+                  }
                   return ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: entries.length,
