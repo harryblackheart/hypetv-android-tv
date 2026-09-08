@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "hypetv-control-centre",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-31",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "HYPETV_DB",
+      "database_name": "hypetv-control-centre",
+      "database_id": "46c5774d-5473-4c8e-8ed3-cd0df8877578",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

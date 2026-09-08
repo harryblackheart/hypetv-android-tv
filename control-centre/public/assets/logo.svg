@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" role="img" aria-label="HypeTV">
+  <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#ff244f"/><stop offset="1" stop-color="#a80022"/></linearGradient></defs>
+  <rect width="720" height="180" rx="34" fill="#08090c"/>
+  <path d="M60 44h34v34h46V44h34v92h-34v-35H94v35H60z" fill="url(#g)"/>
+  <text x="205" y="116" font-family="Arial Black,Arial,sans-serif" font-size="88" font-weight="900" fill="#fff">HYPE</text>
+  <text x="500" y="116" font-family="Arial Black,Arial,sans-serif" font-size="88" font-weight="900" fill="url(#g)">TV</text>
+</svg>
