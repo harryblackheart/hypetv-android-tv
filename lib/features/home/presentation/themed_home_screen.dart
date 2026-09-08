@@ -204,36 +204,32 @@ class _QprHome extends StatelessWidget {
                     Expanded(
                       child: _QprTile(
                         title: 'LIVE TV',
-                        icon: Icons.live_tv_rounded,
+                        asset: 'assets/qpr/tiles/live_tv.png',
                         route: '/live',
-                        palette: palette,
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: _QprTile(
                         title: 'TV GUIDE',
-                        icon: Icons.view_week_rounded,
+                        asset: 'assets/qpr/tiles/tv_guide.png',
                         route: '/guide',
-                        palette: palette,
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: _QprTile(
                         title: 'MOVIES',
-                        icon: Icons.movie_rounded,
+                        asset: 'assets/qpr/tiles/movies.png',
                         route: '/movies',
-                        palette: palette,
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: _QprTile(
                         title: 'SERIES',
-                        icon: Icons.video_library_rounded,
+                        asset: 'assets/qpr/tiles/series.png',
                         route: '/series',
-                        palette: palette,
                       ),
                     ),
                   ],
@@ -303,46 +299,29 @@ class _QprHome extends StatelessWidget {
 class _QprTile extends StatelessWidget {
   const _QprTile({
     required this.title,
-    required this.icon,
+    required this.asset,
     required this.route,
-    required this.palette,
   });
 
   final String title;
-  final IconData icon;
+  final String asset;
   final String route;
-  final LayoutPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return _FocusButton(
       onPressed: () => context.push(route),
       focusColor: Colors.white,
-      child: Container(
-        height: 132,
-        decoration: BoxDecoration(
-          color: const Color(0xB3125EA9),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white70, width: 2),
-          boxShadow: const [
-            BoxShadow(color: Colors.black38, blurRadius: 16, offset: Offset(0, 8)),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 48, color: Colors.white),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
+      child: Semantics(
+        label: title,
+        button: true,
+        child: SizedBox(
+          height: 150,
+          child: Image.asset(
+            asset,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
         ),
       ),
     );

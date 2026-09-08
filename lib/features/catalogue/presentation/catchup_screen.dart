@@ -57,9 +57,7 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
               page: page,
               limit: 500,
             );
-            for (final channel in batch.where(
-              (channel) => channel.catchupAvailable,
-            )) {
+            for (final channel in batch) {
               final key =
                   channel.upstreamId ?? channel.id ?? channel.title;
               byId[key] = channel;
@@ -191,7 +189,7 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
                     ),
                   ),
                 (false, null, true) => const Center(
-                    child: Text('No catch-up channels are available in this group.'),
+                    child: Text('No channels are available in this group.'),
                   ),
                 _ => ListView.separated(
                     padding: const EdgeInsets.fromLTRB(48, 18, 48, 50),
@@ -311,8 +309,7 @@ class _GuideChannelRow extends ConsumerWidget {
                   separatorBuilder: (_, _) => const SizedBox(width: 10),
                   itemBuilder: (context, index) {
                     final entry = entries[index];
-                    final playable =
-                        channel.catchupAvailable && entry.isPast;
+                    final playable = entry.isPast;
                     return _ProgrammeCard(
                       entry: entry,
                       autofocus: autofocus && index == 0,
