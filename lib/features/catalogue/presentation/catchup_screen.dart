@@ -18,6 +18,8 @@ class CatchupScreen extends ConsumerStatefulWidget {
 }
 
 class _CatchupScreenState extends ConsumerState<CatchupScreen> {
+  static const _allCategory = '__all__';
+
   List<CatalogueCategory> _categories = const [];
   List<ContentItem> _channels = const [];
   String? _categoryId;
@@ -38,17 +40,57 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
     try {
       final service = ref.read(catalogueServiceProvider);
       final categories = await service.fetchCategories(CatalogueType.live);
-      final channels = await service.fetchItems(
-        CatalogueType.live,
-        categoryId: categoryId,
-      );
+
+      var effectiveCategory = categoryId;
+      if (effectiveCategory == null && categories.isNotEmpty) {
+        effectiveCategory = categories.first.id;
+      }
+
+      final byId = <String, ContentItem>{};
+
+      Future<void> loadCategory(String id) async {
+        for (var page = 1; page <= 10; page++) {
+          try {
+            final batch = await service.fetchItems(
+              CatalogueType.live,
+              categoryId: id,
+              page: page,
+              limit: 500,
+            );
+            for (final channel in batch.where(
+              (channel) => channel.catchupAvailable,
+            )) {
+              final key =
+                  channel.upstreamId ?? channel.id ?? channel.title;
+              byId[key] = channel;
+            }
+            if (batch.length < 500) {
+              break;
+            }
+          } on CatalogueException catch (error) {
+            if (error.isAuthenticationRejected) {
+              rethrow;
+            }
+            break;
+          }
+        }
+      }
+
+      if (effectiveCategory == _allCategory) {
+        for (final category in categories) {
+          await loadCategory(category.id);
+        }
+      } else if (effectiveCategory != null) {
+        await loadCategory(effectiveCategory);
+      }
+
       if (!mounted) {
         return;
       }
       setState(() {
         _categories = categories;
-        _channels = channels.where((channel) => channel.catchupAvailable).toList(growable: false);
-        _categoryId = categoryId;
+        _channels = byId.values.toList(growable: false);
+        _categoryId = effectiveCategory;
         _loading = false;
       });
     } catch (error) {
@@ -125,8 +167,8 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
                   children: [
                     _GuideCategoryChip(
                       label: 'All',
-                      selected: _categoryId == null,
-                      onPressed: () => _load(),
+                      selected: _categoryId == _allCategory,
+                      onPressed: () => _load(categoryId: _allCategory),
                     ),
                     for (final category in _categories)
                       _GuideCategoryChip(
@@ -141,8 +183,12 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
             Expanded(
               child: switch ((_loading, _error, _channels.isEmpty)) {
                 (true, _, _) => const Center(child: CircularProgressIndicator()),
-                (false, Object(), _) => const Center(
-                    child: Text('The TV guide could not be loaded.'),
+                (false, Object(), _) => Center(
+                    child: FilledButton.icon(
+                      onPressed: () => _load(categoryId: _categoryId),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Retry Catch-up'),
+                    ),
                   ),
                 (false, null, true) => const Center(
                     child: Text('No catch-up channels are available in this group.'),
