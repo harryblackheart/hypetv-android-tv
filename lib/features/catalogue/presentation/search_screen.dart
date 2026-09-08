@@ -28,6 +28,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Object? _error;
   var _loading = false;
   var _searched = false;
+  Timer? _searchDebounce;
   late CatalogueType _type;
 
   @override
@@ -37,57 +38,64 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // upstream catalogue. Start with Live TV, or the section the user entered
     // search from, and let them explicitly change the search scope.
     _type = widget.initialType ?? CatalogueType.live;
+    _controller.addListener(_queueLocalSearch);
+    unawaited(
+      ref
+          .read(catalogueCacheProvider)
+          .warmAll(ref.read(catalogueServiceProvider)),
+    );
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _controller.removeListener(_queueLocalSearch);
     _controller.dispose();
     super.dispose();
+  }
+
+  void _queueLocalSearch() {
+    _searchDebounce?.cancel();
+    final query = _controller.text.trim();
+    if (query.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _results = const <ContentItem>[];
+          _searched = false;
+          _loading = false;
+          _error = null;
+        });
+      }
+      return;
+    }
+
+    _searchDebounce = Timer(const Duration(milliseconds: 120), _search);
   }
 
   Future<void> _search() async {
     final query = _controller.text.trim();
     if (query.isEmpty) return;
+
+    final typeAtStart = _type;
     setState(() {
       _loading = true;
       _error = null;
       _searched = true;
-      _results = const [];
     });
+
     try {
-      final service = ref.read(catalogueServiceProvider);
-      final cache = ref.read(catalogueCacheProvider);
-      var results = await cache.search(_type, query);
-      if (results.isEmpty) {
-        try {
-          results = await service.search(query, type: _type);
-        } on CatalogueException catch (error) {
-          if (error.isAuthenticationRejected) rethrow;
-          results = const [];
-        }
-      }
-      if (results.isEmpty) {
-        final synced = await cache.syncType(service, _type);
-        final needle = query.toLowerCase();
-        results = synced.where((item) =>
-          item.title.toLowerCase().contains(needle) ||
-          item.subtitle.toLowerCase().contains(needle) ||
-          (item.description?.toLowerCase().contains(needle) ?? false)
-        ).take(150).toList(growable: false);
-      }
-      if (mounted) {
-        setState(() => _results = results);
-      }
-    } catch (error) {
-      if (!mounted) {
+      final results = await ref.read(catalogueCacheProvider).search(typeAtStart, query);
+      if (!mounted || typeAtStart != _type || query != _controller.text.trim()) {
         return;
       }
-      if (error is CatalogueException && error.isAuthenticationRejected) {
-        unawaited(rejectDeviceToken(context, ref));
-      }
+      setState(() => _results = results);
+    } catch (error) {
+      if (!mounted) return;
       setState(() => _error = error);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && typeAtStart == _type && query == _controller.text.trim()) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -99,6 +107,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _error = null;
       _searched = false;
     });
+    _queueLocalSearch();
   }
 
   @override
@@ -190,7 +199,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         const SizedBox(width: 12),
                         const Flexible(
                           child: Text(
-                            'Search one section at a time for faster TV results.',
+                            'Instant local search. Catalogue refreshes automatically in the background.',
                             style: TextStyle(color: AppColors.muted),
                           ),
                         ),

@@ -25,7 +25,7 @@ class InterfaceSettingsScreen extends ConsumerWidget {
                 children: [
                   IconButton.filledTonal(
                     autofocus: true,
-                    onPressed: context.pop,
+                    onPressed: () => context.go('/settings'),
                     icon: const Icon(Icons.arrow_back_rounded),
                   ),
                   const SizedBox(width: 18),

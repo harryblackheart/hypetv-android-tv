@@ -42,7 +42,8 @@ enum InterfaceLayout {
   sky,
   xc,
   virgin,
-  skyClassic;
+  skyClassic,
+  qpr;
 
   String get label => switch (this) {
         hypetv => 'HypeTV Original',
@@ -51,6 +52,7 @@ enum InterfaceLayout {
         xc => 'XC IPTV Style',
         virgin => 'Virgin Media Style',
         skyClassic => 'Sky Classic',
+        qpr => 'QPR Style',
       };
 
   String get description => switch (this) {
@@ -60,6 +62,7 @@ enum InterfaceLayout {
         xc => 'Tile-led IPTV dashboard with quick access to content.',
         virgin => 'Dark aubergine TV interface with guide-first navigation.',
         skyClassic => 'Old-school blue TV launcher with yellow focus highlights.',
+        qpr => 'QPR blue-and-white stadium interface with glass TV tiles.',
       };
 }
 

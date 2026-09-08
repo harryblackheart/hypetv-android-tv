@@ -10,21 +10,30 @@ final catalogueCacheProvider =
     Provider<CatalogueCacheService>((ref) => CatalogueCacheService());
 
 class CatalogueCacheService {
+  final Map<CatalogueType, List<ContentItem>> _memory =
+      <CatalogueType, List<ContentItem>>{};
+  Future<void>? _warming;
+  DateTime? _lastWarm;
+
   Future<File> _file(CatalogueType type) async {
     final dir = await getApplicationSupportDirectory();
     return File('${dir.path}/catalogue_${type.name}.json');
   }
 
   Future<List<ContentItem>> load(CatalogueType type) async {
+    final remembered = _memory[type];
+    if (remembered != null) return remembered;
     try {
       final file = await _file(type);
       if (!await file.exists()) return const [];
       final decoded = jsonDecode(await file.readAsString());
       if (decoded is! List) return const [];
-      return decoded
+      final items = decoded
           .whereType<Map<String, dynamic>>()
           .map((json) => ContentItem.fromJson(json, fallbackType: type.apiName))
           .toList(growable: false);
+      _memory[type] = items;
+      return items;
     } catch (_) {
       return const [];
     }
@@ -36,9 +45,11 @@ class CatalogueCacheService {
       final key = '${item.type}:${item.upstreamId ?? item.id ?? item.title}';
       byId[key] = item;
     }
+    final values = byId.values.toList(growable: false);
+    _memory[type] = values;
     final file = await _file(type);
     await file.writeAsString(
-      jsonEncode(byId.values.map((e) => e.toJson()).toList()),
+      jsonEncode(values.map((e) => e.toJson()).toList()),
       flush: true,
     );
   }
@@ -94,6 +105,40 @@ class CatalogueCacheService {
 
     if (all.isNotEmpty) await save(type, all);
     return all;
+  }
+
+  Future<void> warmAll(
+    CatalogueService service, {
+    bool force = false,
+  }) {
+    final now = DateTime.now();
+    if (!force &&
+        _lastWarm != null &&
+        now.difference(_lastWarm!) < const Duration(hours: 6)) {
+      return Future<void>.value();
+    }
+    final existing = _warming;
+    if (existing != null) return existing;
+
+    final task = _warmAllInternal(service);
+    _warming = task;
+    task.whenComplete(() {
+      _warming = null;
+    });
+    return task;
+  }
+
+  Future<void> _warmAllInternal(CatalogueService service) async {
+    for (final type in CatalogueType.values) {
+      try {
+        await syncType(service, type);
+      } on CatalogueException catch (error) {
+        if (error.isAuthenticationRejected) rethrow;
+      } catch (_) {
+        // Keep the last good local catalogue if a refresh fails.
+      }
+    }
+    _lastWarm = DateTime.now();
   }
 
   Future<List<ContentItem>> search(CatalogueType type, String query) async {

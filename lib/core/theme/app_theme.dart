@@ -76,6 +76,14 @@ class LayoutPalette {
             focus: Color(0xFFFFD900),
             backgroundAlt: Color(0xFF061A57),
           ),
+        InterfaceLayout.qpr => const LayoutPalette(
+            background: Color(0xFF0050A4),
+            surface: Color(0xCC0B3F82),
+            surfaceRaised: Color(0xCC1666B2),
+            accent: Color(0xFF1D70B7),
+            focus: Colors.white,
+            backgroundAlt: Color(0xFF001F4D),
+          ),
       };
 }
 

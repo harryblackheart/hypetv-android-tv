@@ -102,10 +102,270 @@ class _LayoutDashboard extends ConsumerWidget {
                 label: 'TiviMate Style',
                 sideNav: true,
               ),
+            InterfaceLayout.qpr => _QprHome(
+                items: items,
+                palette: palette,
+              ),
             InterfaceLayout.hypetv => const SizedBox.shrink(),
           },
         ),
       ),
+    );
+  }
+}
+
+class _QprHome extends StatelessWidget {
+  const _QprHome({
+    required this.items,
+    required this.palette,
+  });
+
+  final List<ContentItem> items;
+  final LayoutPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          'assets/qpr/loftus_road.jpg',
+          fit: BoxFit.cover,
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xD900255A),
+                Color(0xE60A4E9A),
+                Color(0xF0001B44),
+              ],
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(52, 24, 52, 30),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Image.asset(
+                      'assets/qpr/qpr_crest.png',
+                      width: 86,
+                      height: 86,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 20),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'HypeTV',
+                          style: TextStyle(
+                            fontSize: 34,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'QPR EDITION',
+                          style: TextStyle(
+                            fontSize: 16,
+                            letterSpacing: 3,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    _TopIcon(icon: Icons.search_rounded, route: '/search'),
+                    _TopIcon(icon: Icons.favorite_rounded, route: '/favourites'),
+                    _TopIcon(icon: Icons.settings_rounded, route: '/settings'),
+                  ],
+                ),
+                const Spacer(),
+                const Text(
+                  'COME ON YOU R\'S',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 3,
+                    shadows: [Shadow(color: Colors.black54, blurRadius: 8)],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QprTile(
+                        title: 'LIVE TV',
+                        icon: Icons.live_tv_rounded,
+                        route: '/live',
+                        palette: palette,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _QprTile(
+                        title: 'TV GUIDE',
+                        icon: Icons.view_week_rounded,
+                        route: '/guide',
+                        palette: palette,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _QprTile(
+                        title: 'MOVIES',
+                        icon: Icons.movie_rounded,
+                        route: '/movies',
+                        palette: palette,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _QprTile(
+                        title: 'SERIES',
+                        icon: Icons.video_library_rounded,
+                        route: '/series',
+                        palette: palette,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _QprShortcut(
+                      label: 'Catch Up',
+                      icon: Icons.history_rounded,
+                      route: '/catchup',
+                    ),
+                    const SizedBox(width: 14),
+                    _QprShortcut(
+                      label: 'Favourites',
+                      icon: Icons.favorite_rounded,
+                      route: '/favourites',
+                    ),
+                    const SizedBox(width: 14),
+                    _QprShortcut(
+                      label: 'Search',
+                      icon: Icons.search_rounded,
+                      route: '/search',
+                    ),
+                    const SizedBox(width: 14),
+                    _QprShortcut(
+                      label: 'Settings',
+                      icon: Icons.settings_rounded,
+                      route: '/settings',
+                    ),
+                  ],
+                ),
+                if (items.isNotEmpty) ...[
+                  const SizedBox(height: 26),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Continue Watching & Top Picks',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 135,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: items.take(12).length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 12),
+                      itemBuilder: (_, index) => _MiniContentCard(item: items[index]),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QprTile extends StatelessWidget {
+  const _QprTile({
+    required this.title,
+    required this.icon,
+    required this.route,
+    required this.palette,
+  });
+
+  final String title;
+  final IconData icon;
+  final String route;
+  final LayoutPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return _FocusButton(
+      onPressed: () => context.push(route),
+      focusColor: Colors.white,
+      child: Container(
+        height: 132,
+        decoration: BoxDecoration(
+          color: const Color(0xB3125EA9),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white70, width: 2),
+          boxShadow: const [
+            BoxShadow(color: Colors.black38, blurRadius: 16, offset: Offset(0, 8)),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 48, color: Colors.white),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QprShortcut extends StatelessWidget {
+  const _QprShortcut({
+    required this.label,
+    required this.icon,
+    required this.route,
+  });
+
+  final String label;
+  final IconData icon;
+  final String route;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.tonalIcon(
+      onPressed: () => context.push(route),
+      icon: Icon(icon),
+      label: Text(label),
     );
   }
 }
@@ -308,7 +568,7 @@ class _SkyClassicHome extends ConsumerWidget {
                   const Spacer(),
                   const BrandLogo(fontSize: 42),
                   const Spacer(),
-                  _TopIcon(icon: Icons.settings_rounded, route: '/interface'),
+                  _TopIcon(icon: Icons.settings_rounded, route: '/settings'),
                 ],
               ),
             ),
