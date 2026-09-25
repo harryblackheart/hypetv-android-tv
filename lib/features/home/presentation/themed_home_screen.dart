@@ -8,6 +8,7 @@ import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/services/content_preferences_service.dart';
 import 'package:hypetv/services/watch_history_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
+import 'package:hypetv/widgets/tv_action.dart';
 
 class ThemedHomeScreen extends ConsumerWidget {
   const ThemedHomeScreen({required this.layout, super.key});
@@ -306,7 +307,8 @@ class _MobileLayoutDashboard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      if (items.isNotEmpty) ...[
+                      if (items.isNotEmpty &&
+                          layout != InterfaceLayout.skyClassic) ...[
                         const SizedBox(height: 20),
                         Text(
                           'Continue Watching & Top Picks',
@@ -459,7 +461,7 @@ class _QprHome extends StatelessWidget {
                     _TopIcon(icon: Icons.settings_rounded, route: '/settings'),
                   ],
                 ),
-                const Spacer(),
+                const SizedBox(height: 22),
                 const Text(
                   'COME ON YOU R\'S',
                   style: TextStyle(
@@ -1084,23 +1086,37 @@ class _TopIcon extends StatelessWidget {
   const _TopIcon({required this.icon, required this.route});
   final IconData icon;
   final String route;
+
   @override
-  Widget build(BuildContext context) => IconButton(
-        onPressed: () => context.push(route),
+  Widget build(BuildContext context) {
+    final action = () => context.push(route);
+    return Focus(
+      onKeyEvent: (_, event) => activateOnTvKey(event, action),
+      child: IconButton(
+        onPressed: action,
         icon: Icon(icon, size: 30),
-      );
+      ),
+    );
+  }
 }
 
 class _SideIcon extends StatelessWidget {
   const _SideIcon({required this.icon, required this.route});
   final IconData icon;
   final String route;
+
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7),
+  Widget build(BuildContext context) {
+    final action = () => context.push(route);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Focus(
+        onKeyEvent: (_, event) => activateOnTvKey(event, action),
         child: IconButton(
-          onPressed: () => context.push(route),
+          onPressed: action,
           icon: Icon(icon, size: 30),
         ),
-      );
+      ),
+    );
+  }
 }

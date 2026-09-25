@@ -377,11 +377,15 @@ class _TopNavigation extends ConsumerWidget {
           _NavLabel('Favourites', onPressed: () => context.push('/favourites')),
         ],
         const Spacer(),
-        IconButton(
-          tooltip: 'Search',
-          onPressed: () => context.push('/search'),
-          icon: const Icon(Icons.search_rounded, size: 30),
-          style: IconButton.styleFrom(backgroundColor: Colors.black54),
+        Focus(
+          onKeyEvent: (_, event) =>
+              activateOnTvKey(event, () => context.push('/search')),
+          child: IconButton(
+            tooltip: 'Search',
+            onPressed: () => context.push('/search'),
+            icon: const Icon(Icons.search_rounded, size: 30),
+            style: IconButton.styleFrom(backgroundColor: Colors.black54),
+          ),
         ),
         if (!mobile) ...[
           const SizedBox(width: 12),

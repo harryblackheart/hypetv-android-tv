@@ -46,22 +46,22 @@ enum InterfaceLayout {
   qpr;
 
   String get label => switch (this) {
-        hypetv => 'HypeTV Original',
-        tivimate => 'TiviMate Style',
+        hypetv => 'HypeTV',
+        tivimate => 'Advanced',
         sky => 'Sky Style',
-        xc => 'XC IPTV Style',
+        xc => 'Basic',
         virgin => 'Virgin Media Style',
-        skyClassic => 'Sky Classic',
+        skyClassic => 'Nostalgic',
         qpr => 'QPR Style',
       };
 
   String get description => switch (this) {
-        hypetv => 'The current HypeTV interface.',
-        tivimate => 'Dark TV-first navigation with a dense guide layout.',
+        hypetv => 'Default HypeTV experience with Netflix-style content rows.',
+        tivimate => 'Advanced TV-first navigation inspired by TiviMate.',
         sky => 'Blue glass interface with large programme presentation.',
-        xc => 'Tile-led IPTV dashboard with quick access to content.',
+        xc => 'Simple IPTV dashboard with large Live TV, Movies, Series and Guide buttons.',
         virgin => 'Dark aubergine TV interface with guide-first navigation.',
-        skyClassic => 'Old-school blue TV launcher with yellow focus highlights.',
+        skyClassic => 'Classic Sky Digibox-inspired experience with blue menus and yellow focus.',
         qpr => 'QPR blue-and-white stadium interface with glass TV tiles.',
       };
 }
@@ -160,10 +160,13 @@ class ContentPreferences {
         (value) => value.name == displayName,
         orElse: () => DisplayMode.automatic,
       ),
-      interfaceLayout: InterfaceLayout.values.firstWhere(
-        (value) => value.name == interfaceName,
-        orElse: () => InterfaceLayout.hypetv,
-      ),
+      interfaceLayout: switch (interfaceName) {
+        'sky' || 'virgin' => InterfaceLayout.hypetv,
+        _ => InterfaceLayout.values.firstWhere(
+            (value) => value.name == interfaceName,
+            orElse: () => InterfaceLayout.hypetv,
+          ),
+      },
       skyClassicMappings: mappings,
     );
   }

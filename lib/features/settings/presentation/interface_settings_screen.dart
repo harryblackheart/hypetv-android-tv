@@ -47,7 +47,13 @@ class InterfaceSettingsScreen extends ConsumerWidget {
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
                   children: [
-                    for (final layout in InterfaceLayout.values)
+                    for (final layout in const [
+                      InterfaceLayout.xc,
+                      InterfaceLayout.hypetv,
+                      InterfaceLayout.tivimate,
+                      InterfaceLayout.skyClassic,
+                      InterfaceLayout.qpr,
+                    ])
                       _LayoutChoice(
                         layout: layout,
                         selected: prefs.interfaceLayout == layout,
