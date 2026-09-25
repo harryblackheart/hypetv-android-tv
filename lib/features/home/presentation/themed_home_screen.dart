@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -66,7 +68,7 @@ class _LayoutDashboard extends ConsumerWidget {
     final mobileLayout = prefs.displayMode == DisplayMode.mobile ||
         (prefs.displayMode == DisplayMode.automatic && width < 700);
 
-    if (mobileLayout) {
+    if (mobileLayout && layout != InterfaceLayout.skyClassic) {
       return _MobileLayoutDashboard(
         layout: layout,
         items: items,
@@ -139,11 +141,11 @@ class _MobileLayoutDashboard extends StatelessWidget {
   final LayoutPalette palette;
 
   String get _label => switch (layout) {
-        InterfaceLayout.tivimate => 'TiviMate Style',
+        InterfaceLayout.tivimate => 'Advanced',
         InterfaceLayout.sky => 'Sky Style',
-        InterfaceLayout.xc => 'XC IPTV Style',
+        InterfaceLayout.xc => 'Basic',
         InterfaceLayout.virgin => 'Virgin Media Style',
-        InterfaceLayout.skyClassic => 'Sky Classic',
+        InterfaceLayout.skyClassic => 'Nostalgic',
         InterfaceLayout.qpr => 'QPR Edition',
         InterfaceLayout.hypetv => 'HypeTV',
       };
@@ -589,12 +591,44 @@ class _QprTile extends StatelessWidget {
       child: Semantics(
         label: title,
         button: true,
-        child: SizedBox(
-          height: 150,
-          child: Image.asset(
-            asset,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              height: 150,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0x55FFFFFF),
+                    Color(0x331D70B7),
+                    Color(0x55002F69),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white70, width: 1.5),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(5),
+                child: Image.asset(
+                  asset,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (_, _, _) => Center(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -770,6 +804,7 @@ class _SkyClassicHome extends ConsumerWidget {
     required this.prefs,
     required this.palette,
   });
+
   final List<ContentItem> items;
   final ContentPreferences prefs;
   final LayoutPalette palette;
@@ -780,27 +815,33 @@ class _SkyClassicHome extends ConsumerWidget {
       future: ref.read(catalogueServiceProvider).fetchCategories(CatalogueType.live),
       builder: (context, snapshot) {
         final categories = snapshot.data ?? const <CatalogueCategory>[];
+
         Set<String> idsFor(String key, List<String> words) {
           final saved = prefs.skyClassicMappings[key];
           if (saved != null && saved.isNotEmpty) return saved;
           return categories
-              .where((c) {
-                final name = c.name.toLowerCase();
+              .where((category) {
+                final name = category.name.toLowerCase();
                 return words.any((word) => name.contains(word));
               })
-              .map((c) => c.id)
+              .map((category) => category.id)
               .toSet();
         }
 
-        final cinema = idsFor('cinema', [
-          'sky cinema',
-          'cinema',
-          'movie channel',
-        ]);
-        final sports = idsFor('sports', ['sport', 'tnt', 'espn', 'dazn', 'ppv']);
-        final kids = idsFor('kids', ['kids', 'child', 'junior', 'cartoon']);
-        final entertainment = idsFor('entertainment', ['entertain', 'general', 'uk tv']);
+        final entertainment =
+            idsFor('entertainment', ['entertain', 'general', 'uk tv']);
+        final cinema =
+            idsFor('cinema', ['sky cinema', 'cinema', 'movie', 'movies']);
+        final sports =
+            idsFor('sports', ['sport', 'tnt', 'espn', 'dazn', 'ppv']);
         final news = idsFor('news', ['news']);
+        final docs = idsFor(
+          'documentaries',
+          ['documentary', 'documentaries', 'docs', 'discovery'],
+        );
+        final kids =
+            idsFor('kids', ['kids', 'child', 'junior', 'cartoon']);
+        final music = idsFor('music', ['music', 'mtv']);
 
         void openMapped(String title, Set<String> ids) {
           if (ids.isEmpty) {
@@ -808,72 +849,370 @@ class _SkyClassicHome extends ConsumerWidget {
             return;
           }
           context.push(
-            '/mapped-live?title=${Uri.encodeComponent(title)}&ids=${Uri.encodeComponent(ids.join(','))}',
+            '/mapped-live?title=${Uri.encodeComponent(title)}'
+            '&ids=${Uri.encodeComponent(ids.join(','))}',
           );
         }
 
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(40, 22, 40, 8),
-              child: Row(
-                children: [
-                  const Spacer(),
-                  const BrandLogo(fontSize: 42),
-                  const Spacer(),
-                  _TopIcon(icon: Icons.settings_rounded, route: '/settings'),
-                ],
-              ),
+        final rows = <_NostalgicMenuItem>[
+          _NostalgicMenuItem('1', 'ALL CHANNELS', () => context.push('/live')),
+          _NostalgicMenuItem(
+            '2',
+            'ENTERTAINMENT',
+            () => openMapped('Entertainment', entertainment),
+          ),
+          _NostalgicMenuItem(
+            '3',
+            'MOVIES',
+            () => openMapped('Movies', cinema),
+          ),
+          _NostalgicMenuItem(
+            '4',
+            'SPORTS',
+            () => openMapped('Sports', sports),
+          ),
+          _NostalgicMenuItem(
+            '5',
+            'NEWS',
+            () => openMapped('News', news),
+          ),
+          _NostalgicMenuItem(
+            '6',
+            'DOCUMENTARIES',
+            () => openMapped('Documentaries', docs),
+          ),
+          _NostalgicMenuItem(
+            '7',
+            'KIDS',
+            () => openMapped('Kids', kids),
+          ),
+          _NostalgicMenuItem(
+            '8',
+            'MUSIC',
+            () => openMapped('Music', music),
+          ),
+          _NostalgicMenuItem('9', 'CATCH UP TV', () => context.push('/catchup')),
+          _NostalgicMenuItem('0', 'MORE...', () => context.push('/settings')),
+        ];
+
+        return DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFFCBE1F3),
+                Color(0xFF8FBCE1),
+                Color(0xFFC6DDF0),
+              ],
             ),
-            const Text(
-              'ALL YOUR FAVOURITES IN ONE PLACE',
-              style: TextStyle(letterSpacing: 2, fontWeight: FontWeight.w700),
+          ),
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final phone = constraints.maxWidth < 700;
+                final width = phone
+                    ? constraints.maxWidth - 20
+                    : constraints.maxWidth.clamp(720.0, 920.0);
+
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(vertical: phone ? 10 : 22),
+                    child: SizedBox(
+                      width: width,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'HypeTV',
+                                  style: TextStyle(
+                                    color: const Color(0xFF194D88),
+                                    fontSize: phone ? 24 : 31,
+                                    fontWeight: FontWeight.w900,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'guide',
+                                  style: TextStyle(
+                                    color: const Color(0xFF5281AF),
+                                    fontSize: phone ? 17 : 22,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  TimeOfDay.now().format(context),
+                                  style: TextStyle(
+                                    color: const Color(0xFF173E70),
+                                    fontSize: phone ? 13 : 17,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: phone ? 58 : 82,
+                            child: Row(
+                              children: [
+                                _NostalgicTopButton(
+                                  label: 'TV GUIDE',
+                                  icon: Icons.view_week_rounded,
+                                  onPressed: () => context.push('/guide'),
+                                ),
+                                _NostalgicTopButton(
+                                  label: 'MOVIES',
+                                  icon: Icons.movie_rounded,
+                                  onPressed: () => context.push('/movies'),
+                                ),
+                                _NostalgicTopButton(
+                                  label: 'SERIES',
+                                  icon: Icons.video_library_rounded,
+                                  onPressed: () => context.push('/series'),
+                                ),
+                                _NostalgicTopButton(
+                                  label: 'SEARCH',
+                                  icon: Icons.search_rounded,
+                                  onPressed: () => context.push('/search'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: const Color(0xFF1A4F8F),
+                                width: 3,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                for (var i = 0; i < rows.length; i++)
+                                  _NostalgicMenuRow(
+                                    item: rows[i],
+                                    autofocus: i == 0,
+                                    compact: phone,
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (!phone) ...[
+                            const SizedBox(height: 12),
+                            const _NostalgicLegend(),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(70, 24, 70, 18),
-                child: GridView.count(
-                  crossAxisCount: 3,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 1.75,
-                  children: [
-                    _ClassicTile(title: 'TV Guide', icon: Icons.view_week_rounded, palette: palette, onPressed: () => context.push('/guide')),
-                    _ClassicTile(title: 'Catch Up TV', icon: Icons.history_rounded, palette: palette, onPressed: () => context.push('/catchup')),
-                    _ClassicTile(title: 'Sky Cinema', icon: Icons.live_tv_rounded, palette: palette, onPressed: () => openMapped('Sky Cinema', cinema)),
-                    _ClassicTile(title: 'Sports', icon: Icons.sports_soccer_rounded, palette: palette, onPressed: () => openMapped('Sports', sports)),
-                    _ClassicTile(title: 'Kids', icon: Icons.child_care_rounded, palette: palette, onPressed: () => openMapped('Kids', kids)),
-                    _ClassicTile(title: 'Entertainment', icon: Icons.tv_rounded, palette: palette, onPressed: () => openMapped('Entertainment', entertainment)),
-                    _ClassicTile(title: 'News', icon: Icons.newspaper_rounded, palette: palette, onPressed: () => openMapped('News', news)),
-                    _ClassicTile(title: 'Movies', icon: Icons.movie_rounded, palette: palette, onPressed: () => context.push('/movies')),
-                    _ClassicTile(title: 'Shows', icon: Icons.video_library_rounded, palette: palette, onPressed: () => context.push('/series')),
-                    _ClassicTile(title: 'Favourites', icon: Icons.favorite_rounded, palette: palette, onPressed: () => context.push('/favourites')),
-                  ],
-                ),
-              ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _NostalgicMenuItem {
+  const _NostalgicMenuItem(this.number, this.label, this.onPressed);
+
+  final String number;
+  final String label;
+  final VoidCallback onPressed;
+}
+
+class _NostalgicMenuRow extends StatefulWidget {
+  const _NostalgicMenuRow({
+    required this.item,
+    required this.autofocus,
+    required this.compact,
+  });
+
+  final _NostalgicMenuItem item;
+  final bool autofocus;
+  final bool compact;
+
+  @override
+  State<_NostalgicMenuRow> createState() => _NostalgicMenuRowState();
+}
+
+class _NostalgicMenuRowState extends State<_NostalgicMenuRow> {
+  var focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      autofocus: widget.autofocus,
+      onFocusChange: (value) => setState(() => focused = value),
+      onKeyEvent: (_, event) => activateOnTvKey(event, widget.item.onPressed),
+      child: InkWell(
+        canRequestFocus: false,
+        onTap: widget.item.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 80),
+          height: widget.compact ? 34 : 42,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: focused
+                ? const Color(0xFFFFD719)
+                : const Color(0xFF164F91),
+            border: const Border(
+              bottom: BorderSide(color: Color(0xFF9EC4E4), width: .7),
             ),
-            if (items.isNotEmpty) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 70),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Today’s Top Picks', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-                ),
-              ),
+          ),
+          child: Row(
+            children: [
               SizedBox(
-                height: 140,
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(70, 10, 70, 18),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: items.take(12).length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 12),
-                  itemBuilder: (_, index) => _MiniContentCard(item: items[index]),
+                width: widget.compact ? 34 : 44,
+                child: Text(
+                  widget.item.number,
+                  style: TextStyle(
+                    color: focused
+                        ? const Color(0xFF173A6E)
+                        : Colors.white,
+                    fontSize: widget.compact ? 16 : 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  widget.item.label,
+                  style: TextStyle(
+                    color: focused
+                        ? const Color(0xFF173A6E)
+                        : Colors.white,
+                    fontSize: widget.compact ? 15 : 19,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
-          ],
-        );
-      },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NostalgicTopButton extends StatefulWidget {
+  const _NostalgicTopButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  State<_NostalgicTopButton> createState() => _NostalgicTopButtonState();
+}
+
+class _NostalgicTopButtonState extends State<_NostalgicTopButton> {
+  var focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Focus(
+        onFocusChange: (value) => setState(() => focused = value),
+        onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
+        child: InkWell(
+          canRequestFocus: false,
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 80),
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: focused
+                  ? const Color(0xFFFFD719)
+                  : const Color(0xFF316CA9),
+              border: Border.all(
+                color: const Color(0xFF1A4F8F),
+                width: 2,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  widget.icon,
+                  color: focused
+                      ? const Color(0xFF173A6E)
+                      : Colors.white,
+                  size: 25,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    color: focused
+                        ? const Color(0xFF173A6E)
+                        : Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NostalgicLegend extends StatelessWidget {
+  const _NostalgicLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _LegendDot(color: Colors.red, label: 'Anytime TV'),
+        SizedBox(width: 18),
+        _LegendDot(color: Colors.green, label: 'Planner'),
+        SizedBox(width: 18),
+        _LegendDot(color: Colors.yellow, label: 'Search A-Z'),
+        SizedBox(width: 18),
+        _LegendDot(color: Colors.blue, label: 'Favourites'),
+      ],
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(width: 13, height: 13, color: color),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF173E70),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1089,7 +1428,7 @@ class _TopIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final action = () => context.push(route);
+    void action() => context.push(route);
     return Focus(
       onKeyEvent: (_, event) => activateOnTvKey(event, action),
       child: IconButton(
@@ -1107,7 +1446,7 @@ class _SideIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final action = () => context.push(route);
+    void action() => context.push(route);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Focus(

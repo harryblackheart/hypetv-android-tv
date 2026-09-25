@@ -72,7 +72,7 @@ class InterfaceSettingsScreen extends ConsumerWidget {
                   child: FilledButton.icon(
                     onPressed: () => _configureSkyClassic(context, ref, prefs),
                     icon: const Icon(Icons.tune_rounded),
-                    label: const Text('Configure Sky Classic tiles'),
+                    label: const Text('Configure Nostalgic categories'),
                   ),
                 ),
             ],
@@ -105,7 +105,7 @@ class InterfaceSettingsScreen extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setLocalState) => AlertDialog(
-          title: const Text('Sky Classic bouquet mapping'),
+          title: const Text('Nostalgic category mapping'),
           content: SizedBox(
             width: 860,
             height: 560,

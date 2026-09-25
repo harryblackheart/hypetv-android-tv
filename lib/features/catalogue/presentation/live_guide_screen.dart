@@ -100,11 +100,22 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
     final prefs =
         ref.watch(contentPreferencesProvider).value ?? const ContentPreferences();
     final palette = LayoutPalette.forLayout(prefs.interfaceLayout);
+    final nostalgic = prefs.interfaceLayout == InterfaceLayout.skyClassic;
+    final guidePalette = nostalgic
+        ? const LayoutPalette(
+            background: Color(0xFFCBE1F3),
+            surface: Color(0xFF164F91),
+            surfaceRaised: Color(0xFF316CA9),
+            accent: Color(0xFF164F91),
+            focus: Color(0xFFFFD719),
+            backgroundAlt: Color(0xFF8FBCE1),
+          )
+        : palette;
     return Scaffold(
       body: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [palette.background, palette.backgroundAlt],
+            colors: [guidePalette.background, guidePalette.backgroundAlt],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -122,9 +133,16 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
                       icon: const Icon(Icons.arrow_back_rounded),
                     ),
                     const SizedBox(width: 16),
-                    const BrandLogo(fontSize: 28),
-                    const SizedBox(width: 22),
-                    Text('TV Guide', style: Theme.of(context).textTheme.headlineLarge),
+                    if (!nostalgic) const BrandLogo(fontSize: 28),
+                    if (!nostalgic) const SizedBox(width: 22),
+                    Text(
+                      nostalgic ? 'HypeTV Guide' : 'TV Guide',
+                      style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                        color: nostalgic
+                            ? const Color(0xFF173E70)
+                            : Colors.white,
+                      ),
+                    ),
                     const Spacer(),
                     DropdownButton<int>(
                       value: days,
@@ -157,7 +175,7 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
                           child: ChoiceChip(
                             label: Text(category.name),
                             selected: categoryId == category.id,
-                            selectedColor: palette.accent,
+                            selectedColor: guidePalette.focus,
                             onSelected: (_) => load(categoryId: category.id),
                           ),
                         ),
@@ -186,7 +204,7 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
                                   channel: channels[index],
                                   autofocus: index == 0,
                                   days: days,
-                                  palette: palette,
+                                  palette: guidePalette,
                                   onCatchup: playCatchup,
                                 ),
                               ),
