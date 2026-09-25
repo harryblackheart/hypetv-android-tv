@@ -1292,35 +1292,6 @@ class _QuickTile extends StatelessWidget {
       );
 }
 
-class _ClassicTile extends StatelessWidget {
-  const _ClassicTile({required this.title, required this.icon, required this.palette, required this.onPressed});
-  final String title;
-  final IconData icon;
-  final LayoutPalette palette;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => _FocusButton(
-        onPressed: onPressed,
-        focusColor: palette.focus,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [palette.surface, palette.surfaceRaised]),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Colors.white30),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 48),
-              const SizedBox(height: 10),
-              Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-            ],
-          ),
-        ),
-      );
-}
-
 class _DashboardTile extends StatelessWidget {
   const _DashboardTile(this.title, this.icon, this.route, this.color);
   final String title;
