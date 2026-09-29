@@ -33,6 +33,7 @@ class BouquetAutoMapper {
     return categories
         .where((category) => matches(bucket, category.name))
         .map((category) => category.id)
+        .whereType<String>()
         .toSet();
   }
 

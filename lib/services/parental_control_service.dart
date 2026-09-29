@@ -2,7 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hypetv/services/secure_storage_service.dart';
 
-final adultUnlockedProvider = StateProvider<bool>((ref) => false);
+class AdultUnlockedController extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void unlock() => state = true;
+  void lock() => state = false;
+}
+
+final adultUnlockedProvider =
+    NotifierProvider<AdultUnlockedController, bool>(
+  AdultUnlockedController.new,
+);
 
 Future<bool> requestAdultPin(
   BuildContext context,
@@ -47,7 +58,7 @@ Future<bool> requestAdultPin(
   final actual = await ref.read(secureStorageServiceProvider).parentalPin;
   final ok = entered == actual;
   if (ok) {
-    ref.read(adultUnlockedProvider.notifier).state = true;
+    ref.read(adultUnlockedProvider.notifier).unlock();
     return true;
   }
 
@@ -128,7 +139,7 @@ Future<void> changeParentalPin(BuildContext context, WidgetRef ref) async {
 
     if (error == null) {
       await ref.read(secureStorageServiceProvider).saveParentalPin(next);
-      ref.read(adultUnlockedProvider.notifier).state = false;
+      ref.read(adultUnlockedProvider.notifier).lock();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Parental PIN updated')),
