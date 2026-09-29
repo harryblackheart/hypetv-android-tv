@@ -818,18 +818,6 @@ class _SkyClassicHome extends ConsumerWidget {
       builder: (context, snapshot) {
         final categories = snapshot.data ?? const <CatalogueCategory>[];
 
-        Set<String> idsFor(String key, List<String> words) {
-          final saved = prefs.skyClassicMappings[key];
-          if (saved != null && saved.isNotEmpty) return saved;
-          return categories
-              .where((category) {
-                final name = category.name.toLowerCase();
-                return words.any((word) => name.contains(word));
-              })
-              .map((category) => category.id)
-              .toSet();
-        }
-
         Set<String> mapped(String key, LiveBouquetBucket bucket) {
           final custom = prefs.skyClassicMappings[key] ?? const <String>{};
           if (custom.isNotEmpty) return custom;
@@ -1477,7 +1465,6 @@ class _SideIconState extends State<_SideIcon> {
                 : const [],
           ),
           child: IconButton(
-            canRequestFocus: false,
             onPressed: action,
             icon: Icon(
               widget.icon,

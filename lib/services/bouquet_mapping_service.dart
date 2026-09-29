@@ -1,4 +1,4 @@
-import 'package:hypetv/features/home/data/catalogue_service.dart';
+import 'package:hypetv/features/home/domain/content_item.dart';
 
 enum LiveBouquetBucket {
   entertainment,
@@ -33,7 +33,6 @@ class BouquetAutoMapper {
     return categories
         .where((category) => matches(bucket, category.name))
         .map((category) => category.id)
-        .whereType<String>()
         .toSet();
   }
 
