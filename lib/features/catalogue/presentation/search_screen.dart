@@ -138,7 +138,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      autofocus: true,
+                      autofocus: mobileLayout,
+                      readOnly: !mobileLayout,
+                      showCursor: mobileLayout,
+                      enableInteractiveSelection: mobileLayout,
+                      canRequestFocus: mobileLayout,
                       onSubmitted: (_) => _search(),
                       textInputAction: TextInputAction.search,
                       style: TextStyle(fontSize: mobileLayout ? 18 : 22),
@@ -305,14 +309,15 @@ class _TvSearchKeyboard extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children: [
-          for (final key in _keys)
+          for (var index = 0; index < _keys.length; index++)
             _TvKey(
-              label: key == ' ' ? 'SPACE' : key,
-              onPressed: key == '⌫'
+              autofocus: index == 0,
+              label: _keys[index] == ' ' ? 'SPACE' : _keys[index],
+              onPressed: _keys[index] == '⌫'
                   ? onBackspace
-                  : key == 'SEARCH'
+                  : _keys[index] == 'SEARCH'
                       ? onSearch
-                      : () => onKey(key),
+                      : () => onKey(_keys[index]),
             ),
         ],
       ),
@@ -321,9 +326,15 @@ class _TvSearchKeyboard extends StatelessWidget {
 }
 
 class _TvKey extends StatefulWidget {
-  const _TvKey({required this.label, required this.onPressed});
+  const _TvKey({
+    required this.label,
+    required this.onPressed,
+    this.autofocus = false,
+  });
+
   final String label;
   final VoidCallback? onPressed;
+  final bool autofocus;
 
   @override
   State<_TvKey> createState() => _TvKeyState();
@@ -335,6 +346,7 @@ class _TvKeyState extends State<_TvKey> {
   @override
   Widget build(BuildContext context) {
     return Focus(
+      autofocus: widget.autofocus,
       canRequestFocus: widget.onPressed != null,
       onKeyEvent: (_, event) => activateOnTvKey(event, widget.onPressed),
       onFocusChange: (value) => setState(() => _focused = value),
