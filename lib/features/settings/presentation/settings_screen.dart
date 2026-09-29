@@ -8,6 +8,7 @@ import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/services/secure_storage_service.dart';
 import 'package:hypetv/services/playback_preferences_service.dart';
 import 'package:hypetv/services/content_preferences_service.dart';
+import 'package:hypetv/services/parental_control_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/services/update_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
@@ -370,9 +371,17 @@ class SettingsScreen extends ConsumerWidget {
                         _SettingsTile(
                           icon: Icons.dashboard_customize_rounded,
                           title: 'Interface / Layout',
-                          subtitle: 'HypeTV, TiviMate, Sky, XC, Virgin, Sky Classic and QPR',
+                          subtitle: 'HypeTV, Advanced, Sky, Basic, Nostalgic and QPR',
                           actionLabel: 'Choose',
                           onPressed: () => context.push('/interface'),
+                        ),
+                        const SizedBox(height: 16),
+                        _SettingsTile(
+                          icon: Icons.lock_rounded,
+                          title: 'Parental controls',
+                          subtitle: 'Adult bouquets are PIN protected (default 0000)',
+                          actionLabel: 'Change PIN',
+                          onPressed: () => changeParentalPin(context, ref),
                         ),
                         const SizedBox(height: 16),
                         const _DisplayModeTile(),

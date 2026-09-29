@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
@@ -8,6 +9,7 @@ import 'package:hypetv/features/catalogue/presentation/content_actions.dart';
 import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/services/content_preferences_service.dart';
+import 'package:hypetv/services/bouquet_mapping_service.dart';
 import 'package:hypetv/services/watch_history_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 import 'package:hypetv/widgets/tv_action.dart';
@@ -697,13 +699,13 @@ class _HeroHome extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(36, 14, 36, 16),
           child: Row(
             children: [
-              Expanded(child: _QuickTile(title: 'LIVE TV', icon: Icons.live_tv_rounded, route: '/live', palette: palette)),
+              Expanded(child: _QuickTile(title: 'LIVE TV', icon: Icons.live_tv_rounded, route: sideNav ? '/advanced/live' : '/live', palette: palette)),
               const SizedBox(width: 12),
               Expanded(child: _QuickTile(title: 'GUIDE', icon: Icons.calendar_view_week_rounded, route: '/guide', palette: palette)),
               const SizedBox(width: 12),
-              Expanded(child: _QuickTile(title: 'MOVIES', icon: Icons.movie_rounded, route: '/movies', palette: palette)),
+              Expanded(child: _QuickTile(title: 'MOVIES', icon: Icons.movie_rounded, route: sideNav ? '/advanced/movies' : '/movies', palette: palette)),
               const SizedBox(width: 12),
-              Expanded(child: _QuickTile(title: 'SERIES', icon: Icons.video_library_rounded, route: '/series', palette: palette)),
+              Expanded(child: _QuickTile(title: 'SERIES', icon: Icons.video_library_rounded, route: sideNav ? '/advanced/series' : '/series', palette: palette)),
             ],
           ),
         ),
@@ -730,9 +732,9 @@ class _HeroHome extends ConsumerWidget {
             children: [
               const SizedBox(height: 36),
               _SideIcon(icon: Icons.search_rounded, route: '/search'),
-              _SideIcon(icon: Icons.live_tv_rounded, route: '/live'),
-              _SideIcon(icon: Icons.movie_rounded, route: '/movies'),
-              _SideIcon(icon: Icons.video_library_rounded, route: '/series'),
+              _SideIcon(icon: Icons.live_tv_rounded, route: '/advanced/live'),
+              _SideIcon(icon: Icons.movie_rounded, route: '/advanced/movies'),
+              _SideIcon(icon: Icons.video_library_rounded, route: '/advanced/series'),
               _SideIcon(icon: Icons.favorite_rounded, route: '/favourites'),
               const Spacer(),
               _SideIcon(icon: Icons.settings_rounded, route: '/settings'),
@@ -783,12 +785,12 @@ class _TileHome extends StatelessWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 18,
               crossAxisSpacing: 18,
-              childAspectRatio: 2.2,
+              childAspectRatio: 3.15,
               children: [
-                _DashboardTile('LIVE TV', Icons.live_tv_rounded, '/live', const Color(0xFF8A32E8)),
+                _DashboardTile('LIVE TV', Icons.live_tv_rounded, '/basic/live', const Color(0xFF8A32E8)),
                 _DashboardTile('TV GUIDE', Icons.calendar_month_rounded, '/guide', const Color(0xFF0A83D8)),
-                _DashboardTile('MOVIES', Icons.movie_rounded, '/movies', const Color(0xFFE534A9)),
-                _DashboardTile('SERIES', Icons.video_library_rounded, '/series', const Color(0xFFF39A25)),
+                _DashboardTile('MOVIES', Icons.movie_rounded, '/basic/movies', const Color(0xFFE534A9)),
+                _DashboardTile('SERIES', Icons.video_library_rounded, '/basic/series', const Color(0xFFF39A25)),
               ],
             ),
           ),
@@ -828,20 +830,20 @@ class _SkyClassicHome extends ConsumerWidget {
               .toSet();
         }
 
+        Set<String> mapped(String key, LiveBouquetBucket bucket) {
+          final custom = prefs.skyClassicMappings[key] ?? const <String>{};
+          if (custom.isNotEmpty) return custom;
+          return BouquetAutoMapper.idsFor(bucket, categories);
+        }
+
         final entertainment =
-            idsFor('entertainment', ['entertain', 'general', 'uk tv']);
-        final cinema =
-            idsFor('cinema', ['sky cinema', 'cinema', 'movie', 'movies']);
-        final sports =
-            idsFor('sports', ['sport', 'tnt', 'espn', 'dazn', 'ppv']);
-        final news = idsFor('news', ['news']);
-        final docs = idsFor(
-          'documentaries',
-          ['documentary', 'documentaries', 'docs', 'discovery'],
-        );
-        final kids =
-            idsFor('kids', ['kids', 'child', 'junior', 'cartoon']);
-        final music = idsFor('music', ['music', 'mtv']);
+            mapped('entertainment', LiveBouquetBucket.entertainment);
+        final cinema = mapped('cinema', LiveBouquetBucket.movies);
+        final sports = mapped('sports', LiveBouquetBucket.sports);
+        final news = mapped('news', LiveBouquetBucket.news);
+        final docs = mapped('documentaries', LiveBouquetBucket.documentaries);
+        final kids = mapped('kids', LiveBouquetBucket.kids);
+        final music = mapped('music', LiveBouquetBucket.music);
 
         void openMapped(String title, Set<String> ids) {
           if (ids.isEmpty) {
@@ -916,12 +918,11 @@ class _SkyClassicHome extends ConsumerWidget {
                     : constraints.maxWidth.clamp(720.0, 920.0);
 
                 return Center(
-                  child: SingleChildScrollView(
+                  child: Padding(
                     padding: EdgeInsets.symmetric(vertical: phone ? 10 : 22),
                     child: SizedBox(
                       width: width,
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -934,6 +935,17 @@ class _SkyClassicHome extends ConsumerWidget {
                                     fontSize: phone ? 24 : 31,
                                     fontWeight: FontWeight.w900,
                                     fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '•  SKY ON THE SLY  •',
+                                  style: TextStyle(
+                                    color: const Color(0xFF0B3D78),
+                                    fontSize: phone ? 13 : 17,
+                                    fontWeight: FontWeight.w900,
+                                    fontStyle: FontStyle.italic,
+                                    letterSpacing: 1.0,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -986,28 +998,36 @@ class _SkyClassicHome extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(height: 10),
-                          Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: const Color(0xFF1A4F8F),
-                                width: 3,
+                          Expanded(
+                            child: SingleChildScrollView(
+                              child: Column(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: const Color(0xFF1A4F8F),
+                                        width: 3,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        for (var i = 0; i < rows.length; i++)
+                                          _NostalgicMenuRow(
+                                            item: rows[i],
+                                            autofocus: i == 0,
+                                            compact: phone,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!phone) ...[
+                                    const SizedBox(height: 12),
+                                    const _NostalgicLegend(),
+                                  ],
+                                ],
                               ),
                             ),
-                            child: Column(
-                              children: [
-                                for (var i = 0; i < rows.length; i++)
-                                  _NostalgicMenuRow(
-                                    item: rows[i],
-                                    autofocus: i == 0,
-                                    compact: phone,
-                                  ),
-                              ],
-                            ),
                           ),
-                          if (!phone) ...[
-                            const SizedBox(height: 12),
-                            const _NostalgicLegend(),
-                          ],
                         ],
                       ),
                     ),
@@ -1063,8 +1083,8 @@ class _NostalgicMenuRowState extends State<_NostalgicMenuRow> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: focused
-                ? const Color(0xFFFFD719)
-                : const Color(0xFF164F91),
+                ? const Color(0xFFFFC400)
+                : const Color(0xFF0B3D78),
             border: const Border(
               bottom: BorderSide(color: Color(0xFF9EC4E4), width: .7),
             ),
@@ -1136,8 +1156,8 @@ class _NostalgicTopButtonState extends State<_NostalgicTopButton> {
             margin: const EdgeInsets.symmetric(horizontal: 3),
             decoration: BoxDecoration(
               color: focused
-                  ? const Color(0xFFFFD719)
-                  : const Color(0xFF316CA9),
+                  ? const Color(0xFFFFC400)
+                  : const Color(0xFF155A9C),
               border: Border.all(
                 color: const Color(0xFF1A4F8F),
                 width: 2,
@@ -1312,9 +1332,9 @@ class _DashboardTile extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 52),
+              Icon(icon, size: 38),
               const SizedBox(width: 18),
-              Text(title, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+              Text(title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
             ],
           ),
         ),
@@ -1371,10 +1391,21 @@ class _FocusButtonState extends State<_FocusButton> {
   var focused = false;
 
   @override
-  Widget build(BuildContext context) => FocusableActionDetector(
-        autofocus: false,
-        onShowFocusHighlight: (value) => setState(() => focused = value),
+  Widget build(BuildContext context) => Focus(
+        canRequestFocus: true,
+        onFocusChange: (value) => setState(() => focused = value),
+        onKeyEvent: (_, event) {
+          if (event is KeyDownEvent &&
+              (event.logicalKey == LogicalKeyboardKey.select ||
+               event.logicalKey == LogicalKeyboardKey.enter ||
+               event.logicalKey == LogicalKeyboardKey.gameButtonA)) {
+            widget.onPressed();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
         child: InkWell(
+          canRequestFocus: false,
           onTap: widget.onPressed,
           borderRadius: BorderRadius.circular(10),
           child: AnimatedContainer(
@@ -1410,21 +1441,50 @@ class _TopIcon extends StatelessWidget {
   }
 }
 
-class _SideIcon extends StatelessWidget {
+class _SideIcon extends StatefulWidget {
   const _SideIcon({required this.icon, required this.route});
   final IconData icon;
   final String route;
 
   @override
+  State<_SideIcon> createState() => _SideIconState();
+}
+
+class _SideIconState extends State<_SideIcon> {
+  bool focused = false;
+
+  @override
   Widget build(BuildContext context) {
-    void action() => context.push(route);
+    void action() => context.push(widget.route);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Focus(
+        onFocusChange: (value) => setState(() => focused = value),
         onKeyEvent: (_, event) => activateOnTvKey(event, action),
-        child: IconButton(
-          onPressed: action,
-          icon: Icon(icon, size: 30),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 80),
+          width: 66,
+          height: 54,
+          decoration: BoxDecoration(
+            color: focused ? Colors.white12 : Colors.transparent,
+            borderRadius: BorderRadius.circular(27),
+            border: Border.all(
+              color: focused ? Colors.white : Colors.transparent,
+              width: focused ? 3 : 0,
+            ),
+            boxShadow: focused
+                ? const [BoxShadow(color: Colors.white24, blurRadius: 12)]
+                : const [],
+          ),
+          child: IconButton(
+            canRequestFocus: false,
+            onPressed: action,
+            icon: Icon(
+              widget.icon,
+              size: 28,
+              color: focused ? Colors.white : Colors.white70,
+            ),
+          ),
         ),
       ),
     );

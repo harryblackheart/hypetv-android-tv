@@ -23,6 +23,7 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
   List<CatalogueCategory> _categories = const [];
   List<ContentItem> _channels = const [];
   String? _categoryId;
+  int _daysAgo = 0;
   bool _loading = true;
   Object? _error;
 
@@ -58,6 +59,7 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
               limit: 500,
             );
             for (final channel in batch) {
+              if (!channel.catchupAvailable) continue;
               final key =
                   channel.upstreamId ?? channel.id ?? channel.title;
               byId[key] = channel;
@@ -177,6 +179,31 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
                   ],
                 ),
               ),
+            SizedBox(
+              height: 56,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 48),
+                children: [
+                  _GuideCategoryChip(
+                    label: 'Today',
+                    selected: _daysAgo == 0,
+                    onPressed: () => setState(() => _daysAgo = 0),
+                  ),
+                  _GuideCategoryChip(
+                    label: 'Yesterday',
+                    selected: _daysAgo == 1,
+                    onPressed: () => setState(() => _daysAgo = 1),
+                  ),
+                  for (var day = 2; day <= 7; day++)
+                    _GuideCategoryChip(
+                      label: '$day days ago',
+                      selected: _daysAgo == day,
+                      onPressed: () => setState(() => _daysAgo = day),
+                    ),
+                ],
+              ),
+            ),
             const Divider(height: 1),
             Expanded(
               child: switch ((_loading, _error, _channels.isEmpty)) {
@@ -198,6 +225,7 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
                     itemBuilder: (context, index) => _GuideChannelRow(
                       channel: _channels[index],
                       autofocus: index == 0,
+                      daysAgo: _daysAgo,
                       onCatchup: _playCatchup,
                     ),
                   ),
@@ -214,11 +242,13 @@ class _GuideChannelRow extends ConsumerWidget {
   const _GuideChannelRow({
     required this.channel,
     required this.autofocus,
+    required this.daysAgo,
     required this.onCatchup,
   });
 
   final ContentItem channel;
   final bool autofocus;
+  final int daysAgo;
   final Future<void> Function(ContentItem, EpgEntry) onCatchup;
 
   @override
@@ -299,11 +329,31 @@ class _GuideChannelRow extends ConsumerWidget {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(child: LinearProgressIndicator());
                 }
-                final entries = snapshot.data ?? const <EpgEntry>[];
-                if (entries.isEmpty) {
-                  return const Center(child: Text('No guide data'));
+                final allEntries = snapshot.data ?? const <EpgEntry>[];
+                final now = DateTime.now();
+                final target = DateTime(now.year, now.month, now.day)
+                    .subtract(Duration(days: daysAgo));
+                final nextDay = target.add(const Duration(days: 1));
+
+                if (channel.catchupDays > 0 && daysAgo >= channel.catchupDays) {
+                  return const Center(child: Text('No catch-up available this far back'));
                 }
+
+                final entries = allEntries.where((entry) {
+                  final start = entry.start?.toLocal();
+                  return start != null &&
+                      !start.isBefore(target) &&
+                      start.isBefore(nextDay);
+                }).toList()
+                  ..sort((a, b) => (a.start ?? DateTime(1970))
+                      .compareTo(b.start ?? DateTime(1970)));
+
+                if (entries.isEmpty) {
+                  return const Center(child: Text('No catch-up guide data for this day'));
+                }
+
                 return ListView.separated(
+                  key: ValueKey('${channel.upstreamId}:$daysAgo'),
                   scrollDirection: Axis.horizontal,
                   itemCount: entries.length,
                   separatorBuilder: (_, _) => const SizedBox(width: 10),

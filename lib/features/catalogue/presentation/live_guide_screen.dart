@@ -8,6 +8,8 @@ import 'package:hypetv/features/home/data/catalogue_service.dart';
 import 'package:hypetv/features/home/domain/content_item.dart';
 import 'package:hypetv/features/player/presentation/player_screen.dart';
 import 'package:hypetv/services/content_preferences_service.dart';
+import 'package:hypetv/services/bouquet_mapping_service.dart';
+import 'package:hypetv/services/parental_control_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
 class LiveGuideScreen extends ConsumerStatefulWidget {
@@ -176,7 +178,13 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
                             label: Text(category.name),
                             selected: categoryId == category.id,
                             selectedColor: guidePalette.focus,
-                            onSelected: (_) => load(categoryId: category.id),
+                            onSelected: (_) async {
+                              if (isAdultBouquetName(category.name)) {
+                                final ok = await requestAdultPin(context, ref);
+                                if (!ok || !mounted) return;
+                              }
+                              await load(categoryId: category.id);
+                            },
                           ),
                         ),
                     ],

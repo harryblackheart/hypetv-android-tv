@@ -19,6 +19,7 @@ class SecureStorageService {
   static const _profilesKey = 'profiles';
   static const _activeProfileIdKey = 'active_profile_id';
   static const _contentPreferencesKey = 'content_preferences';
+  static const _parentalPinKey = 'parental_pin';
 
   final FlutterSecureStorage _storage;
 
@@ -61,6 +62,14 @@ class SecureStorageService {
       _storage.read(key: _contentPreferencesKey);
   Future<void> saveContentPreferences(String value) =>
       _storage.write(key: _contentPreferencesKey, value: value);
+
+  Future<String> get parentalPin async {
+    final value = await _storage.read(key: _parentalPinKey);
+    return value != null && RegExp(r'^\d{4}$').hasMatch(value) ? value : '0000';
+  }
+
+  Future<void> saveParentalPin(String value) =>
+      _storage.write(key: _parentalPinKey, value: value);
 
   Future<void> savePlaybackMode(String value) =>
       _storage.write(key: _playbackModeKey, value: value);

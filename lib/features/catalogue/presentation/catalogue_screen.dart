@@ -12,6 +12,8 @@ import 'package:hypetv/features/home/presentation/widgets/media_card.dart';
 import 'package:hypetv/services/favourites_service.dart';
 import 'package:hypetv/services/watch_history_service.dart';
 import 'package:hypetv/services/catalogue_cache_service.dart';
+import 'package:hypetv/services/bouquet_mapping_service.dart';
+import 'package:hypetv/services/parental_control_service.dart';
 import 'package:hypetv/widgets/brand_logo.dart';
 
 class CatalogueScreen extends ConsumerStatefulWidget {
@@ -96,6 +98,14 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
           }
         }
         items = loaded;
+      }
+      if (widget.type == CatalogueType.live &&
+          effectiveCategory == _allCategory) {
+        final adultIds = categories
+            .where((c) => isAdultBouquetName(c.name))
+            .map((c) => c.id)
+            .toSet();
+        items = items.where((item) => !adultIds.contains(item.categoryId)).toList();
       }
       if (!mounted) return;
       setState(() {
@@ -200,7 +210,14 @@ class _CatalogueScreenState extends ConsumerState<CatalogueScreen> {
                       _CategoryChip(
                         label: category.name,
                         selected: _selectedCategory == category.id,
-                        onPressed: () => _load(categoryId: category.id),
+                        onPressed: () async {
+                          if (widget.type == CatalogueType.live &&
+                              isAdultBouquetName(category.name)) {
+                            final ok = await requestAdultPin(context, ref);
+                            if (!ok || !mounted) return;
+                          }
+                          await _load(categoryId: category.id);
+                        },
                       ),
                   ],
                 ),

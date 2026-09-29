@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/features/activation/presentation/activation_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catalogue_screen.dart';
+import 'package:hypetv/features/catalogue/presentation/compact_catalogue_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catalogue_diagnostics_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/catchup_screen.dart';
 import 'package:hypetv/features/catalogue/presentation/content_details_screen.dart';
@@ -88,6 +89,60 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/movies',
         builder: (context, state) => const PlatformGate(
           child: CatalogueScreen(type: CatalogueType.movie),
+        ),
+      ),
+      GoRoute(
+        path: '/basic/live',
+        builder: (context, state) => const PlatformGate(
+          child: CompactCatalogueScreen(
+            type: CatalogueType.live,
+            style: CompactCatalogueStyle.basic,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/basic/movies',
+        builder: (context, state) => const PlatformGate(
+          child: CompactCatalogueScreen(
+            type: CatalogueType.movie,
+            style: CompactCatalogueStyle.basic,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/basic/series',
+        builder: (context, state) => const PlatformGate(
+          child: CompactCatalogueScreen(
+            type: CatalogueType.series,
+            style: CompactCatalogueStyle.basic,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/advanced/live',
+        builder: (context, state) => const PlatformGate(
+          child: CompactCatalogueScreen(
+            type: CatalogueType.live,
+            style: CompactCatalogueStyle.advanced,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/advanced/movies',
+        builder: (context, state) => const PlatformGate(
+          child: CompactCatalogueScreen(
+            type: CatalogueType.movie,
+            style: CompactCatalogueStyle.advanced,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/advanced/series',
+        builder: (context, state) => const PlatformGate(
+          child: CompactCatalogueScreen(
+            type: CatalogueType.series,
+            style: CompactCatalogueStyle.advanced,
+          ),
         ),
       ),
       GoRoute(
