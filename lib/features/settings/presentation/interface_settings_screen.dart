@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hypetv/core/theme/app_theme.dart';
@@ -24,7 +25,7 @@ class InterfaceSettingsScreen extends ConsumerWidget {
               Row(
                 children: [
                   IconButton.filledTonal(
-                    autofocus: true,
+                    autofocus: false,
                     onPressed: () => context.go('/settings'),
                     icon: const Icon(Icons.arrow_back_rounded),
                   ),
@@ -162,69 +163,75 @@ class InterfaceSettingsScreen extends ConsumerWidget {
   }
 }
 
-class _LayoutChoice extends StatelessWidget {
-  const _LayoutChoice({
-    required this.layout,
-    required this.selected,
-    required this.onPressed,
-  });
-
+class _LayoutChoice extends StatefulWidget {
+  const _LayoutChoice({required this.layout, required this.selected, required this.onPressed});
   final InterfaceLayout layout;
   final bool selected;
   final VoidCallback onPressed;
+  @override
+  State<_LayoutChoice> createState() => _LayoutChoiceState();
+}
 
+class _LayoutChoiceState extends State<_LayoutChoice> {
+  var _focused = false;
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.gameButtonA) {
+      widget.onPressed();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
   @override
   Widget build(BuildContext context) {
-    final p = LayoutPalette.forLayout(layout);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onPressed,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [p.background, p.backgroundAlt]),
-            border: Border.all(
-              color: selected ? p.focus : Colors.white24,
-              width: selected ? 4 : 1,
+    final p = LayoutPalette.forLayout(widget.layout);
+    final borderColor = _focused ? Colors.white : widget.selected ? p.focus : Colors.white24;
+    return Focus(
+      autofocus: widget.selected,
+      canRequestFocus: true,
+      onFocusChange: (value) => setState(() => _focused = value),
+      onKeyEvent: _onKey,
+      child: AnimatedScale(
+        scale: _focused ? 1.035 : 1,
+        duration: const Duration(milliseconds: 100),
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            canRequestFocus: false,
+            onTap: widget.onPressed,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [p.background, p.backgroundAlt]),
+                border: Border.all(color: borderColor, width: _focused ? 6 : widget.selected ? 4 : 1),
+                boxShadow: _focused ? const [BoxShadow(color: Colors.white54, blurRadius: 22, spreadRadius: 3)] : const [],
+              ),
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Container(width: 14, height: 42, color: p.accent),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(widget.layout.label, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
+                    if (_focused) const DecoratedBox(
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.all(Radius.circular(20))),
+                      child: Padding(padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5), child: Text('SELECT', style: TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.w900))),
+                    ) else if (widget.selected) Icon(Icons.check_circle_rounded, color: p.focus),
+                  ]),
+                  const Spacer(),
+                  Text(widget.layout.description, style: const TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    for (var i=0;i<3;i++) ...[
+                      Expanded(child: Container(height: 34, decoration: BoxDecoration(color: i==0 ? p.surface : p.surfaceRaised, borderRadius: BorderRadius.circular(4)))),
+                      if (i != 2) const SizedBox(width: 6),
+                    ],
+                  ]),
+                ],
+              ),
             ),
-          ),
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(width: 14, height: 42, color: p.accent),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      layout.label,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  if (selected) Icon(Icons.check_circle_rounded, color: p.focus),
-                ],
-              ),
-              const Spacer(),
-              Text(layout.description, style: const TextStyle(color: Colors.white70)),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  for (var i = 0; i < 3; i++) ...[
-                    Expanded(
-                      child: Container(
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: i == 0 ? p.surface : p.surfaceRaised,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                    if (i != 2) const SizedBox(width: 6),
-                  ],
-                ],
-              ),
-            ],
           ),
         ),
       ),

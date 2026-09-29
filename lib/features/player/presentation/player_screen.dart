@@ -66,13 +66,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     super.initState();
     _player = Player(
       configuration: PlayerConfiguration(
-        bufferSize: _isLive ? 64 * 1024 * 1024 : 128 * 1024 * 1024,
+        bufferSize: _isLive ? 8 * 1024 * 1024 : 64 * 1024 * 1024,
       ),
     );
     _videoController = VideoController(
       _player,
-      configuration: const VideoControllerConfiguration(
-        hwdec: 'auto',
+      configuration: VideoControllerConfiguration(
+        hwdec: _isLive ? 'auto' : 'auto-copy',
         enableHardwareAcceleration: true,
       ),
     );
@@ -410,8 +410,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         content: Text(
           [
             if (_duration > Duration.zero) 'Duration: ${_formatDuration(_duration)}',
-            'Hardware acceleration: enabled (auto)',
-            'Hardware decoder mode: auto',
+            'Hardware acceleration: enabled',
+            'Hardware decoder mode: ${_isLive ? 'auto (fast live)' : 'auto-copy (VOD safe)'}',
             'Audio tracks: ${_tracks.audio.where((track) => track.id != 'no').length}',
             'Subtitle tracks: ${_tracks.subtitle.where((track) => track.id != 'no').length}',
             'Video mode: ${_videoFit.name}',

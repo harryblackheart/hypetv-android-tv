@@ -132,6 +132,9 @@ class CatalogueService {
   final Future<String?> Function()? loadToken;
   final Future<void> Function()? clearActivation;
 
+  final Map<String, PlaybackSource> _playbackCache = <String, PlaybackSource>{};
+  final Map<String, DateTime> _playbackCacheExpiry = <String, DateTime>{};
+
   static Future<String> _platformAppVersion() async {
     return (await PackageInfo.fromPlatform()).version;
   }
@@ -311,14 +314,23 @@ class CatalogueService {
     if (id == null || id.isEmpty) {
       throw const CatalogueException('PLAYBACK_UNAVAILABLE');
     }
+
+    final extension = item.containerExtension?.isNotEmpty == true
+        ? item.containerExtension!
+        : item.type == 'live'
+            ? 'ts'
+            : 'mp4';
+    final cacheKey = '${item.playbackType}:$id:$extension';
+    final cached = _playbackCache[cacheKey];
+    final expires = _playbackCacheExpiry[cacheKey];
+    if (cached != null && expires != null && expires.isAfter(DateTime.now())) {
+      return cached;
+    }
+
     final body = await _post('/api/playback/resolve', {
       'content_type': item.playbackType,
       'content_id': id,
-      'container_extension': item.containerExtension?.isNotEmpty == true
-          ? item.containerExtension
-          : item.type == 'live'
-          ? 'm3u8'
-          : 'mp4',
+      'container_extension': extension,
     });
     final data = _mapAt(body, const ['data', 'playback']) ?? body;
     final url = (data['url'] ?? data['playback_url'] ?? data['stream_url'])
@@ -330,7 +342,10 @@ class CatalogueService {
     final headers = rawHeaders is Map
         ? rawHeaders.map((key, value) => MapEntry('$key', '$value'))
         : const <String, String>{};
-    return PlaybackSource(url: url, headers: headers);
+    final source = PlaybackSource(url: url, headers: headers);
+    _playbackCache[cacheKey] = source;
+    _playbackCacheExpiry[cacheKey] = DateTime.now().add(const Duration(minutes: 4));
+    return source;
   }
 
   String _providerId(String id) {
