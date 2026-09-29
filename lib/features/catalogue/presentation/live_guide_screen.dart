@@ -105,12 +105,12 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
     final nostalgic = prefs.interfaceLayout == InterfaceLayout.skyClassic;
     final guidePalette = nostalgic
         ? const LayoutPalette(
-            background: Color(0xFFCBE1F3),
-            surface: Color(0xFF164F91),
-            surfaceRaised: Color(0xFF316CA9),
-            accent: Color(0xFF164F91),
-            focus: Color(0xFFFFD719),
-            backgroundAlt: Color(0xFF8FBCE1),
+            background: Color(0xFF071A34),
+            surface: Color(0xFF0A2C59),
+            surfaceRaised: Color(0xFF0F3F7A),
+            accent: Color(0xFF164C8E),
+            focus: Color(0xFFFFCC00),
+            backgroundAlt: Color(0xFF0B2347),
           )
         : palette;
     return Scaffold(
@@ -137,12 +137,24 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
                     const SizedBox(width: 16),
                     if (!nostalgic) const BrandLogo(fontSize: 28),
                     if (!nostalgic) const SizedBox(width: 22),
+                    if (nostalgic) ...[
+                      const Text(
+                        'sky',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w300,
+                          fontStyle: FontStyle.italic,
+                          letterSpacing: -2,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
                     Text(
                       nostalgic ? 'HypeTV Guide' : 'TV Guide',
                       style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                        color: nostalgic
-                            ? const Color(0xFF173E70)
-                            : Colors.white,
+                        color: Colors.white,
+                        fontWeight: nostalgic ? FontWeight.w800 : null,
                       ),
                     ),
                     const Spacer(),
@@ -210,9 +222,11 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
                                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                                 itemBuilder: (context, index) => _GuideRow(
                                   channel: channels[index],
+                                  channelNumber: index + 1,
                                   autofocus: index == 0,
                                   days: days,
                                   palette: guidePalette,
+                                  nostalgic: nostalgic,
                                   onCatchup: playCatchup,
                                 ),
                               ),
@@ -228,53 +242,81 @@ class _LiveGuideScreenState extends ConsumerState<LiveGuideScreen> {
 class _GuideRow extends ConsumerWidget {
   const _GuideRow({
     required this.channel,
+    required this.channelNumber,
     required this.autofocus,
     required this.days,
     required this.palette,
+    required this.nostalgic,
     required this.onCatchup,
   });
 
   final ContentItem channel;
+  final int channelNumber;
   final bool autofocus;
   final int days;
   final LayoutPalette palette;
+  final bool nostalgic;
   final Future<void> Function(ContentItem, EpgEntry) onCatchup;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => SizedBox(
-        height: 112,
+        height: nostalgic ? 58 : 112,
         child: Row(
           children: [
             Container(
-              width: 245,
+              width: nostalgic ? 285 : 245,
               decoration: BoxDecoration(
-                color: palette.surface.withValues(alpha: .9),
-                border: Border.all(color: Colors.white12),
+                color: palette.surface.withValues(alpha: .96),
+                border: Border.all(
+                  color: nostalgic ? const Color(0xFF5B87B8) : Colors.white12,
+                ),
               ),
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.symmetric(
+                horizontal: nostalgic ? 8 : 10,
+                vertical: nostalgic ? 4 : 10,
+              ),
               child: Row(
                 children: [
-                  SizedBox.square(
-                    dimension: 52,
-                    child: channel.imageUrl.isEmpty
-                        ? const Icon(Icons.live_tv_rounded)
-                        : Image.network(
-                            channel.imageUrl,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) => const Icon(Icons.live_tv_rounded),
-                          ),
-                  ),
-                  const SizedBox(width: 10),
+                  if (nostalgic) ...[
+                    SizedBox(
+                      width: 42,
+                      child: Text(
+                        channelNumber.toString().padLeft(3, '0'),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    SizedBox.square(
+                      dimension: 52,
+                      child: channel.imageUrl.isEmpty
+                          ? const Icon(Icons.live_tv_rounded)
+                          : Image.network(
+                              channel.imageUrl,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, _, _) =>
+                                  const Icon(Icons.live_tv_rounded),
+                            ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   Expanded(
                     child: Text(
                       channel.title,
-                      maxLines: 2,
+                      maxLines: nostalgic ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: nostalgic ? 14 : null,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                   if (channel.catchupAvailable)
-                    const Icon(Icons.history_rounded, size: 18),
+                    const Icon(Icons.history_rounded, size: 16),
                 ],
               ),
             ),
@@ -298,10 +340,11 @@ class _GuideRow extends ConsumerWidget {
                     separatorBuilder: (_, _) => const SizedBox(width: 6),
                     itemBuilder: (context, index) {
                       final entry = entries[index];
-                      final catchup = channel.catchupAvailable && entry.isPast;
+                      final catchup = entry.isPast;
                       return _Programme(
                         entry: entry,
                         palette: palette,
+                        nostalgic: nostalgic,
                         autofocus: autofocus && index == 0,
                         catchup: catchup,
                         onPressed: () async {
@@ -336,6 +379,7 @@ class _Programme extends StatelessWidget {
   const _Programme({
     required this.entry,
     required this.palette,
+    required this.nostalgic,
     required this.autofocus,
     required this.catchup,
     required this.onPressed,
@@ -343,6 +387,7 @@ class _Programme extends StatelessWidget {
 
   final EpgEntry entry;
   final LayoutPalette palette;
+  final bool nostalgic;
   final bool autofocus;
   final bool catchup;
   final VoidCallback onPressed;
@@ -354,34 +399,56 @@ class _Programme extends StatelessWidget {
       if (entry.end != null) _clock(entry.end!),
     ].join(' – ');
     return SizedBox(
-      width: 255,
+      width: nostalgic ? 210 : 255,
       child: Card(
-        color: entry.isCurrent ? palette.accent.withValues(alpha: .35) : palette.surface,
+        margin: nostalgic ? const EdgeInsets.all(1) : null,
+        shape: nostalgic ? const RoundedRectangleBorder() : null,
+        color: entry.isCurrent
+            ? palette.accent.withValues(alpha: .55)
+            : palette.surface,
         child: InkWell(
           autofocus: autofocus,
           onTap: onPressed,
-          focusColor: palette.focus.withValues(alpha: .18),
+          focusColor: nostalgic
+              ? palette.focus.withValues(alpha: .92)
+              : palette.focus.withValues(alpha: .18),
           child: Padding(
-            padding: const EdgeInsets.all(11),
+            padding: nostalgic
+                ? const EdgeInsets.symmetric(horizontal: 8, vertical: 5)
+                : const EdgeInsets.all(11),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Expanded(child: Text(time, style: const TextStyle(fontSize: 12, color: Colors.white70))),
+                    Expanded(
+                      child: Text(
+                        time,
+                        style: TextStyle(
+                          fontSize: nostalgic ? 10 : 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
                     if (catchup) const Icon(Icons.history_rounded, size: 17),
                   ],
                 ),
-                const SizedBox(height: 7),
+                SizedBox(height: nostalgic ? 2 : 7),
                 Text(
                   entry.title,
-                  maxLines: 2,
+                  maxLines: nostalgic ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: nostalgic ? 13 : null,
+                  ),
                 ),
-                const Spacer(),
-                if (entry.isCurrent)
-                  const Text('NOW', style: TextStyle(fontWeight: FontWeight.w900)),
+                if (!nostalgic) const Spacer(),
+                if (!nostalgic && entry.isCurrent)
+                  const Text(
+                    'NOW',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
               ],
             ),
           ),

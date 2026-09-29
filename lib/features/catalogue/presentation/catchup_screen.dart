@@ -59,7 +59,6 @@ class _CatchupScreenState extends ConsumerState<CatchupScreen> {
               limit: 500,
             );
             for (final channel in batch) {
-              if (!channel.catchupAvailable) continue;
               final key =
                   channel.upstreamId ?? channel.id ?? channel.title;
               byId[key] = channel;
@@ -324,7 +323,7 @@ class _GuideChannelRow extends ConsumerWidget {
             child: FutureBuilder<List<EpgEntry>>(
               future: ref
                   .read(catalogueServiceProvider)
-                  .fetchEpg(channel, limit: 2000, includePast: true, days: channel.catchupDays > 0 ? channel.catchupDays : 7),
+                  .fetchEpg(channel, limit: 2000, includePast: true, days: 7),
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(child: LinearProgressIndicator());
@@ -334,10 +333,6 @@ class _GuideChannelRow extends ConsumerWidget {
                 final target = DateTime(now.year, now.month, now.day)
                     .subtract(Duration(days: daysAgo));
                 final nextDay = target.add(const Duration(days: 1));
-
-                if (channel.catchupDays > 0 && daysAgo >= channel.catchupDays) {
-                  return const Center(child: Text('No catch-up available this far back'));
-                }
 
                 final entries = allEntries.where((entry) {
                   final start = entry.start?.toLocal();

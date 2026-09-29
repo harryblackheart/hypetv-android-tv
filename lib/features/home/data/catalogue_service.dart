@@ -281,7 +281,7 @@ class CatalogueService {
     EpgEntry entry,
   ) async {
     final id = item.upstreamId;
-    if (id == null || id.isEmpty || !item.catchupAvailable) {
+    if (id == null || id.isEmpty) {
       throw const CatalogueException('CATCHUP_UNAVAILABLE');
     }
     if (entry.start == null || entry.end == null) {
