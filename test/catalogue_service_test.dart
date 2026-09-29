@@ -90,9 +90,9 @@ void main() {
           expect(request.method, 'POST');
           expect(payload['content_type'], 'live');
           expect(payload['content_id'], '1234');
-          expect(payload['container_extension'], 'm3u8');
+          expect(payload['container_extension'], 'ts');
           return http.Response(
-            '{"url":"https://stream.example/live.m3u8"}',
+            '{"url":"https://stream.example/live.ts"}',
             200,
           );
         }),
@@ -111,7 +111,7 @@ void main() {
         ),
       );
 
-      expect(source.url, endsWith('live.m3u8'));
+      expect(source.url, endsWith('live.ts'));
     },
   );
 
