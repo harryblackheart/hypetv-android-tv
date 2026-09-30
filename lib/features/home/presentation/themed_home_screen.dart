@@ -824,6 +824,8 @@ class _SkyClassicHome extends ConsumerWidget {
           return BouquetAutoMapper.idsFor(bucket, categories);
         }
 
+        final allChannels = categories.map((category) => category.id).toSet();
+
         final entertainment =
             mapped('entertainment', LiveBouquetBucket.entertainment);
         final cinema = mapped('cinema', LiveBouquetBucket.movies);
@@ -845,7 +847,11 @@ class _SkyClassicHome extends ConsumerWidget {
         }
 
         final rows = <_NostalgicMenuItem>[
-          _NostalgicMenuItem('1', 'ALL CHANNELS', () => context.push('/live')),
+          _NostalgicMenuItem(
+            '1',
+            'ALL CHANNELS',
+            () => openMapped('All Channels', allChannels),
+          ),
           _NostalgicMenuItem(
             '2',
             'ENTERTAINMENT',
@@ -891,9 +897,9 @@ class _SkyClassicHome extends ConsumerWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFFCBE1F3),
-                Color(0xFF8FBCE1),
-                Color(0xFFC6DDF0),
+                Color(0xFF0A2A52),
+                Color(0xFF0D4F91),
+                Color(0xFF123A70),
               ],
             ),
           ),
@@ -917,39 +923,40 @@ class _SkyClassicHome extends ConsumerWidget {
                             child: Row(
                               children: [
                                 Text(
-                                  'HypeTV',
+                                  'sky',
                                   style: TextStyle(
-                                    color: const Color(0xFF194D88),
-                                    fontSize: phone ? 24 : 31,
-                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                    fontSize: phone ? 28 : 38,
+                                    fontWeight: FontWeight.w300,
                                     fontStyle: FontStyle.italic,
+                                    letterSpacing: -2,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 5),
                                 Text(
-                                  '•  SKY ON THE SLY  •',
+                                  'guide',
                                   style: TextStyle(
-                                    color: const Color(0xFF0B3D78),
+                                    color: Colors.white70,
+                                    fontSize: phone ? 13 : 17,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Text(
+                                  'HypeTV  •  ON THE SLY  •',
+                                  style: TextStyle(
+                                    color: const Color(0xFFFFD21A),
                                     fontSize: phone ? 13 : 17,
                                     fontWeight: FontWeight.w900,
                                     fontStyle: FontStyle.italic,
                                     letterSpacing: 1.0,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'guide',
-                                  style: TextStyle(
-                                    color: const Color(0xFF5281AF),
-                                    fontSize: phone ? 17 : 22,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
                                 const Spacer(),
                                 Text(
                                   TimeOfDay.now().format(context),
                                   style: TextStyle(
-                                    color: const Color(0xFF173E70),
+                                    color: Colors.white,
                                     fontSize: phone ? 13 : 17,
                                     fontWeight: FontWeight.w800,
                                   ),

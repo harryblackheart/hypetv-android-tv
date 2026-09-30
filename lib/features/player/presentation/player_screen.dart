@@ -71,9 +71,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
     _videoController = VideoController(
       _player,
-      configuration: VideoControllerConfiguration(
-        hwdec: _isLive ? 'auto' : 'no',
-        enableHardwareAcceleration: _isLive,
+      configuration: const VideoControllerConfiguration(
+        hwdec: 'auto-copy',
+        enableHardwareAcceleration: true,
       ),
     );
     _subscriptions.addAll([
@@ -410,8 +410,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         content: Text(
           [
             if (_duration > Duration.zero) 'Duration: ${_formatDuration(_duration)}',
-            'Hardware acceleration: ${_isLive ? 'enabled' : 'disabled for compatibility'}',
-            'Hardware decoder mode: ${_isLive ? 'auto (fast live)' : 'software (VOD compatibility)'}',
+            'Hardware acceleration: enabled',
+            'Hardware decoder mode: auto-copy (Android hardware decode)',
             'Audio tracks: ${_tracks.audio.where((track) => track.id != 'no').length}',
             'Subtitle tracks: ${_tracks.subtitle.where((track) => track.id != 'no').length}',
             'Video mode: ${_videoFit.name}',

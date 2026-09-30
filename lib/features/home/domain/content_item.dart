@@ -225,11 +225,42 @@ class ContentItem {
       int? fallbackEpisode,
     }) {
       final copy = <String, dynamic>{...source};
+
+      final info = copy['info'];
+      if (info is Map) {
+        final merged = <String, dynamic>{
+          ...info.cast<String, dynamic>(),
+          ...copy,
+        };
+        copy
+          ..clear()
+          ..addAll(merged);
+      }
+
       final explicitSeason =
-          (copy['season'] ?? copy['season_number'] ?? season)?.toString();
-      final episodeNumber =
-          (copy['episode_num'] ?? copy['episode_number'] ?? copy['episode'] ?? fallbackEpisode)
+          (copy['season'] ??
+                  copy['season_number'] ??
+                  copy['season_num'] ??
+                  copy['season_no'] ??
+                  season)
               ?.toString();
+
+      final episodeNumber =
+          (copy['episode_num'] ??
+                  copy['episode_number'] ??
+                  copy['episode_no'] ??
+                  copy['episode'] ??
+                  copy['num'] ??
+                  fallbackEpisode)
+              ?.toString();
+
+      if (explicitSeason != null && explicitSeason.isNotEmpty) {
+        copy['season_number'] = explicitSeason;
+      }
+      if (episodeNumber != null && episodeNumber.isNotEmpty) {
+        copy['episode_number'] = episodeNumber;
+      }
+
       final existingBadge = copy['badge']?.toString().trim();
       if ((existingBadge == null || existingBadge.isEmpty) &&
           explicitSeason != null &&
@@ -238,54 +269,101 @@ class ContentItem {
           episodeNumber.isNotEmpty) {
         copy['badge'] = 'S${explicitSeason}E$episodeNumber';
       }
+
       return copy;
     }
 
-    if (value is List) {
-      for (var index = 0; index < value.length; index++) {
-        final episode = value[index];
-        if (episode is Map<String, dynamic>) {
-          maps.add(annotate(episode, fallbackEpisode: index + 1));
-        }
-      }
-    } else if (value is Map) {
-      for (final entry in value.entries) {
-        final season = entry.key.toString();
-        final seasonValue = entry.value;
-        if (seasonValue is List) {
-          for (var index = 0; index < seasonValue.length; index++) {
-            final episode = seasonValue[index];
-            if (episode is Map<String, dynamic>) {
-              maps.add(
-                annotate(
-                  episode,
-                  season: season,
-                  fallbackEpisode: index + 1,
-                ),
-              );
-            }
+    void parse(dynamic node, {String? season}) {
+      if (node == null) return;
+
+      if (node is List) {
+        for (var index = 0; index < node.length; index++) {
+          final entry = node[index];
+          if (entry is! Map) continue;
+
+          final map = entry.cast<String, dynamic>();
+          final nested =
+              map['episodes'] ??
+              map['episode_list'] ??
+              map['items'];
+
+          final nestedSeason =
+              (map['season'] ??
+                      map['season_number'] ??
+                      map['season_num'] ??
+                      map['number'] ??
+                      season)
+                  ?.toString();
+
+          if (nested != null) {
+            parse(nested, season: nestedSeason);
+          } else {
+            maps.add(
+              annotate(
+                map,
+                season: nestedSeason,
+                fallbackEpisode: index + 1,
+              ),
+            );
           }
-        } else if (seasonValue is Map<String, dynamic>) {
-          maps.add(annotate(seasonValue, season: season));
         }
+        return;
+      }
+
+      if (node is Map) {
+        final map = node.cast<dynamic, dynamic>();
+
+        for (final key in const [
+          'episodes',
+          'seasons',
+          'episode_list',
+          'series_episodes',
+          'items',
+        ]) {
+          if (map.containsKey(key) && map[key] != null) {
+            parse(map[key], season: season);
+            return;
+          }
+        }
+
+        var handledSeasonMap = false;
+        for (final entry in map.entries) {
+          final key = entry.key.toString();
+          if (int.tryParse(key) != null &&
+              (entry.value is List || entry.value is Map)) {
+            parse(entry.value, season: key);
+            handledSeasonMap = true;
+          }
+        }
+        if (handledSeasonMap) return;
+
+        maps.add(annotate(map.cast<String, dynamic>(), season: season));
       }
     }
 
-    return maps
-        .map((episode) {
-          final info = episode['info'];
-          if (info is Map) {
-            return ContentItem.fromJson(
-              <String, dynamic>{...info.cast<String, dynamic>(), ...episode},
-              fallbackType: 'episode',
-            );
-          }
-          return ContentItem.fromJson(episode, fallbackType: 'episode');
-        })
-        .where((episode) => episode.id?.isNotEmpty == true)
-        .toList(growable: false);
-  }
+    parse(value);
 
+    final parsed = maps
+        .map(
+          (episode) => ContentItem.fromJson(
+            episode,
+            fallbackType: 'episode',
+          ),
+        )
+        .where((episode) => episode.id?.isNotEmpty == true)
+        .toList(growable: true);
+
+    final seen = <String>{};
+    return parsed.where((episode) {
+      final key =
+          episode.playbackId ??
+          episode.sourceId ??
+          episode.id ??
+          '';
+      if (key.isEmpty) return true;
+      return seen.add(key);
+    }).toList(growable: false);
+  }
 }
 
 class ContentShelf {

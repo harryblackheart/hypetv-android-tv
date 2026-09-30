@@ -228,7 +228,45 @@ class CatalogueService {
     raw['id'] = '${type.apiName}:$providerId';
     raw['source_id'] = providerId;
     raw['type'] = type.apiName;
-    raw['episodes'] ??= container['episodes'] ?? body['episodes'];
+
+    if (type == CatalogueType.series) {
+      dynamic episodes = container['episodes'] ?? body['episodes'];
+
+      final bodyData = body['data'];
+      if (episodes == null && bodyData is Map<String, dynamic>) {
+        episodes =
+            bodyData['episodes'] ??
+            bodyData['seasons'] ??
+            bodyData['series_episodes'] ??
+            bodyData['episode_list'];
+
+        final seriesInfo = bodyData['series_info'];
+        if (episodes == null && seriesInfo is Map<String, dynamic>) {
+          episodes =
+              seriesInfo['episodes'] ??
+              seriesInfo['seasons'] ??
+              seriesInfo['episode_list'];
+        }
+      }
+
+      episodes ??=
+          container['seasons'] ??
+          container['series_episodes'] ??
+          container['episode_list'];
+
+      final nestedSeries = container['series'];
+      if (episodes == null && nestedSeries is Map<String, dynamic>) {
+        episodes =
+            nestedSeries['episodes'] ??
+            nestedSeries['seasons'] ??
+            nestedSeries['episode_list'];
+      }
+
+      raw['episodes'] = episodes;
+    } else {
+      raw['episodes'] ??= container['episodes'] ?? body['episodes'];
+    }
+
     return ContentItem.fromJson(raw, fallbackType: type.apiName);
   }
 
